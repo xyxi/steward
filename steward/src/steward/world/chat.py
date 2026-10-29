@@ -59,6 +59,13 @@ ROBOT_OWNER = "operator"
 
 def _terminate(proc: subprocess.Popen) -> None:
     """End a harness run and any process it started (each run has its own process group)."""
+    if os.name == "nt":
+        if proc.poll() is not None:
+            return
+        result = subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+        if result.returncode != 0 and proc.poll() is None:
+            raise OSError(f"Unable to stop harness process tree {proc.pid}: taskkill exited with {result.returncode}")
+        return
     try:
         os.killpg(proc.pid, signal.SIGTERM)
     except ProcessLookupError:  # the run already exited
@@ -108,6 +115,8 @@ class _Agent:
     extra_reason: Callable[[], str | None] | None = None
     session_id: str | None = None
     busy: bool = False
+    cancelled: bool = False
+    control_lock: threading.Lock = field(default_factory=threading.Lock)
     proc: subprocess.Popen | None = None
 
 
@@ -195,6 +204,7 @@ class HarnessChat:
             if agent.busy:
                 raise HttpError(409, f"{agent.label} is still working on the previous message")
             agent.busy = True
+            agent.cancelled = False
             entry = self._add(key, "user", text)
             first = agent.session_id is None
         threading.Thread(target=self._run, args=(agent, text, first), name=f"chat-{key}", daemon=True).start()
@@ -219,20 +229,23 @@ class HarnessChat:
         proc = agent.proc
         if not agent.busy or proc is None or proc.poll() is not None:
             return {"stopped": False}
-        _terminate(proc)
-        with self._lock:
-            self._add(key, "system", f"已停止 {agent.label} 的本轮任务")
-        if key == "robot" and self.config and self.config.ego_api:
-            try:
-                call("POST", f"{self.config.ego_api}/skill/stop", {})
-            except (HttpError, OSError) as exc:
-                self._report(agent, f"停止机器人动作失败：{exc}")
+        with agent.control_lock:
+            agent.cancelled = True
+            _terminate(proc)
+            with self._lock:
+                self._add(key, "system", f"已停止 {agent.label} 的本轮任务")
+            if key == "robot" and self.config and self.config.ego_api:
+                try:
+                    call("POST", f"{self.config.ego_api}/skill/stop", {})
+                except (HttpError, OSError) as exc:
+                    self._report(agent, f"停止机器人动作失败：{exc}")
         return {"stopped": True}
 
     def stop(self) -> None:
         for agent in self.agents.values():
             proc = agent.proc
             if proc is not None and proc.poll() is None:
+                agent.cancelled = True
                 _terminate(proc)
 
     # -------------------------------------------------------------- internals
@@ -302,7 +315,7 @@ class HarnessChat:
     def _run(self, agent: _Agent, text: str, first: bool) -> None:
         cfg = self.config
         fd, name = tempfile.mkstemp(prefix=f"steward-{agent.key}-", suffix=".yml")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(agent.patch())
         patch = Path(name)
         args = [str(cfg.dsh), "--profile", agent.profile, "--patch", str(patch), "--json"]
@@ -319,7 +332,8 @@ class HarnessChat:
             agent.cwd.mkdir(parents=True, exist_ok=True)
             proc = agent.proc = subprocess.Popen(args, cwd=agent.cwd, env=env, stdin=subprocess.PIPE,
                                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                                 start_new_session=True)
+                                                 encoding="utf-8", start_new_session=os.name != "nt",
+                                                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
             proc.stdin.write((agent.brief if first else agent.follow_up) + text)
             proc.stdin.close()
             err_reader = threading.Thread(target=lambda: stderr_tail.extend(proc.stderr), daemon=True)
@@ -332,7 +346,7 @@ class HarnessChat:
             code = proc.wait()
             timer.cancel()
             err_reader.join(2)
-            if code != 0 and code != -15:
+            if code != 0 and code != -15 and not agent.cancelled:
                 detail = "".join(stderr_tail[-6:]).strip() or f"exit code {code}"
                 self._report(agent, f"{agent.label} 运行失败：{detail}")
                 if agent.on_failure is not None:
@@ -343,11 +357,12 @@ class HarnessChat:
             self._report(agent, f"无法启动 {agent.label}：{exc}")
         finally:
             patch.unlink(missing_ok=True)
-            if controlled and agent.after_turn is not None:
-                try:
-                    agent.after_turn()
-                except (HttpError, OSError) as exc:
-                    self._report(agent, f"交还机器人控制失败：{exc}")
+            with agent.control_lock:
+                if controlled and agent.after_turn is not None:
+                    try:
+                        agent.after_turn()
+                    except (HttpError, OSError) as exc:
+                        self._report(agent, f"交还机器人控制失败：{exc}")
             with self._lock:
                 agent.busy = False
                 agent.proc = None

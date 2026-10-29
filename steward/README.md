@@ -15,6 +15,8 @@ open http://127.0.0.1:7400/console   # 浏览器控制台：斜视主视图、�
 
 ## 与 DeepSeek Harness 一起运行
 
+Windows 完成本地依赖安装和 profile 创建后，可双击 `run_windows.bat` 启动世界与机器人服务；该文件配置本地 Python 依赖路径，并让机器人子进程使用基础 Python 解释器。
+
 ```sh
 echo 'DEEPSEEK_API_KEY=sk-...' > .env     # 已被 Git 忽略，运行脚本自动加载
 .venv/bin/steward up                      # WCA :7400，机器人端口 :7410，Ego API :7420
@@ -25,6 +27,8 @@ echo 'DEEPSEEK_API_KEY=sk-...' > .env     # 已被 Git 忽略，运行脚本自�
 ```
 
 `ego` profile 是机器人的 Ego Harness，只能经 Ego API 感知与行动，shell、文件、网页等通用工具已禁用；`world` 与 `world-task` profile 是 World Harness，经世界控制接口构建资产、组合场景、控制 Episode。机器人与世界使用不同的 `DSH_HOME`。
+
+控制台对话在 Windows 使用 `dsh.cmd`，在 macOS/Linux 使用 `dsh`，通过 UTF-8 传输提示词和运行事件。停止机器人对话会结束 Harness 进程树，并在请求停止机器人动作后交还控制权；动作停止请求失败时，控制台会显示错误。
 
 ## 目录
 

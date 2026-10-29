@@ -73,7 +73,8 @@ def _chat_config(args):
     world, robot = getattr(args, "world_harness", None), getattr(args, "robot_harness", None)
     if not world and not robot:
         return None
-    return ChatConfig(dsh=STEWARD_DIR / "dsh" / "node_modules" / ".bin" / "dsh", cwd=STEWARD_DIR,
+    launcher = "dsh.cmd" if os.name == "nt" else "dsh"
+    return ChatConfig(dsh=STEWARD_DIR / "dsh" / "node_modules" / ".bin" / launcher, cwd=STEWARD_DIR,
                       env_file=STEWARD_DIR / ".env", world_home=Path(world) if world else None,
                       robot_home=Path(robot) if robot else None, ego_api=getattr(args, "ego_api", None))
 
