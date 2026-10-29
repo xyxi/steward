@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write steward/dsh/packages/dsh-tool-slarm/README.md
+/:
+  en: da1c1c1295667780
+  zh: 8cecca34edbebb55
+/steward-dsh-tool-slarm:
+  en: ca5bff27beecbd86
+  zh: ed539bbe482fccbb
+/steward-dsh-tool-slarm/summary:
+  en: 7673a94ad5ab78c1
+  zh: cca1484f3f133b67
+/steward-dsh-tool-slarm/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 6e85873f6f5f222a
+/steward-dsh-tool-slarm/use-this-package:
+  en: 649da367bba6e624
+  zh: e5e3b5ceb5b45c18
+/steward-dsh-tool-slarm/understand-the-implementation:
+  en: f4f4da107afc9da2
+  zh: 7d7b3e995785860f
+/steward-dsh-tool-slarm/further-exploration:
+  en: 619e836c25a44abb
+  zh: e3a62834ba281a08
+/steward-dsh-tool-slarm/model-experience:
+  en: ffdc5238f0e9708c
+  zh: e534f72c3769f4a6
+/steward-dsh-tool-slarm/known-limitations-and-deferred-work:
+  en: 601243f89c96cb48
+  zh: 3a1f8a5a2832337a
+/steward-dsh-tool-slarm/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

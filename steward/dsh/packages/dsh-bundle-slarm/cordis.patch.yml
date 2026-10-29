@@ -1,0 +1,9 @@
+- insert:
+    - id: steward-slarm-api
+      name: '@steward/dsh-slarm-client'
+      config:
+        endpoint: 'http://115.120.57.9/slarm'
+        inputRoot: '.'
+        stateDir: 'var/slarm'
+    - id: steward-tool-slarm
+      name: '@steward/dsh-tool-slarm'

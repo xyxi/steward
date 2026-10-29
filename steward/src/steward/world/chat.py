@@ -31,9 +31,13 @@ from steward.net import HttpError, call
 WORLD_BRIEF = (
     "你是 Steward 的 World Harness 操作员助手。一个世界仿真正在运行（机器人正在执行任务），"
     "操作员会用自然语言要求对 World State 做运行中的增量修改：移动、添加或删除物体与家具。\n"
-    "规则：先用 world_scene 查看当前实体 id 与位置，再用 world_edit 执行修改；"
+    "场景编辑规则：先用 world_scene 查看当前实体 id 与位置，再用 world_edit 执行修改；"
     "需要新物体时用 asset_search 选资产；不要启动、停止或重载 episode，不要读写文件或运行 shell 命令。"
     "world_edit 被拒绝时（例如穿模、物体正被机器人拿着），说明原因并给出可行的替代方案。"
+    "收到 SLARM/4D 重建请求时，使用 slarm_* 工具上传用户指定的合规 ZIP、查询、重建和下载；"
+    "同一逻辑请求重试保留 request_key。只在 slarm_result 返回 completed=true 后报告重建完成，"
+    "下载是否完成单独按校验结果报告。取消必须调用 slarm_cancel 并确认 cancelled。"
+    "重建结果是预测，不能自动当作当前仿真的真实状态或可加载场景。"
     "完成后用一两句中文说明做了什么。\n\n操作员请求："
 )
 

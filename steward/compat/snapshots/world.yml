@@ -1238,3 +1238,12 @@
     slowTimeoutMs: 120000
 - id: steward-tool-world
   name: '@steward/dsh-tool-world'
+# == @steward/dsh-bundle-slarm
+- id: steward-slarm-api
+  name: '@steward/dsh-slarm-client'
+  config:
+    endpoint: http://115.120.57.9/slarm
+    inputRoot: .
+    stateDir: var/slarm
+- id: steward-tool-slarm
+  name: '@steward/dsh-tool-slarm'

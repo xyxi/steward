@@ -1,0 +1,14 @@
+{
+  "name": "@steward/dsh-slarm",
+  "version": "0.0.1",
+  "private": true,
+  "description": "SLARM reconstruction service interface and tool request types.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": { ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" } },
+  "files": ["lib"],
+  "dependencies": { "@deepseek-ai/dsh-brand": "0.2.1-rc.3" },
+  "peerDependencies": { "@deepseek-ai/cordis": "^4.0.5" },
+  "devDependencies": { "@deepseek-ai/cordis": "4.0.5" }
+}

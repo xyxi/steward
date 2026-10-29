@@ -8,6 +8,9 @@
     { "path": "packages/dsh-robot-safety" },
     { "path": "packages/dsh-world" },
     { "path": "packages/dsh-world-client" },
-    { "path": "packages/dsh-tool-world" }
+    { "path": "packages/dsh-tool-world" },
+    { "path": "packages/dsh-slarm" },
+    { "path": "packages/dsh-slarm-client" },
+    { "path": "packages/dsh-tool-slarm" }
   ]
 }

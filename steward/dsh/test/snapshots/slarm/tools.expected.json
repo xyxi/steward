@@ -1,0 +1,196 @@
+[
+  {
+    "id": "rec_one",
+    "dataset_id": "ds_one",
+    "status": "succeeded",
+    "progress": {
+      "completed_frames": 21,
+      "total_frames": 21
+    },
+    "error": null,
+    "reconstruction_id": "rec_one",
+    "next_action": "slarm_result"
+  },
+  {
+    "schema_version": "1.0",
+    "reconstruction_id": "rec_one",
+    "dataset_id": "ds_one",
+    "model": {
+      "id": "fixture"
+    },
+    "archive_sha256": "102855d599837ca8258d565736139b711e301989df39f506468076decfea1dac",
+    "frame_range": {
+      "start": 0,
+      "end": 21
+    },
+    "frame_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ],
+    "camera_ids": [
+      "front_left",
+      "front",
+      "front_right"
+    ],
+    "coordinates": {
+      "axes": "FLU",
+      "unit": "m"
+    },
+    "summary": {
+      "valid_point_count": 12,
+      "windows": [
+        {
+          "context_frame_indices": [
+            0,
+            5,
+            10,
+            15
+          ],
+          "target_frame_indices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ]
+        },
+        {
+          "context_frame_indices": [
+            5,
+            10,
+            15,
+            20
+          ],
+          "target_frame_indices": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ]
+        }
+      ]
+    },
+    "quality_status": "ok",
+    "warnings": [],
+    "metrics": [
+      {
+        "value": null
+      }
+    ],
+    "expires_at": "2099-01-01T00:00:00Z",
+    "completed": true,
+    "model_calls": 2,
+    "input_image_occurrences": 24,
+    "distinct_input_images": 15,
+    "output_images": 63,
+    "artifacts": [
+      {
+        "artifact_id": "art_1",
+        "kind": "pointcloud",
+        "filename": "points.npz",
+        "media_type": "application/octet-stream",
+        "bytes": 27,
+        "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
+        "download_path": "/v1/reconstructions/rec_one/artifacts/art_1",
+        "expires_at": "2099-01-01T00:00:00Z",
+        "frame_indices": [
+          0
+        ],
+        "download_url": "{{endpoint}}/v1/reconstructions/rec_one/artifacts/art_1"
+      },
+      {
+        "artifact_id": "art_2",
+        "kind": "pointcloud",
+        "filename": "points.npz",
+        "media_type": "application/octet-stream",
+        "bytes": 27,
+        "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
+        "download_path": "/v1/reconstructions/rec_one/artifacts/art_2",
+        "expires_at": "2099-01-01T00:00:00Z",
+        "frame_indices": [
+          1
+        ],
+        "download_url": "{{endpoint}}/v1/reconstructions/rec_one/artifacts/art_2"
+      },
+      {
+        "artifact_id": "art_3",
+        "kind": "rgb_video",
+        "filename": "video.mp4",
+        "media_type": "application/octet-stream",
+        "bytes": 27,
+        "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
+        "download_path": "/v1/reconstructions/rec_one/artifacts/art_3",
+        "expires_at": "2099-01-01T00:00:00Z",
+        "frame_indices": [
+          2
+        ],
+        "download_url": "{{endpoint}}/v1/reconstructions/rec_one/artifacts/art_3"
+      }
+    ],
+    "local_result_path": "{{cwd}}/state/{{service}}/results/rec_one/result.json",
+    "interpretation": "Geometry, semantics and motion are predictions. Point counts are not object counts. quality_status=ok is not accuracy validation. Windows are not globally fused."
+  },
+  {
+    "reconstruction_id": "rec_one",
+    "files": [
+      {
+        "artifact_id": "art_1",
+        "kind": "pointcloud",
+        "path": "{{cwd}}/state/{{service}}/results/rec_one/art_1/points.npz",
+        "bytes": 27,
+        "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
+        "verified": true,
+        "reused": false
+      },
+      {
+        "artifact_id": "art_2",
+        "kind": "pointcloud",
+        "path": "{{cwd}}/state/{{service}}/results/rec_one/art_2/points.npz",
+        "bytes": 27,
+        "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
+        "verified": true,
+        "reused": false
+      },
+      {
+        "artifact_id": "art_3",
+        "kind": "rgb_video",
+        "path": "{{cwd}}/state/{{service}}/results/rec_one/art_3/video.mp4",
+        "bytes": 27,
+        "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
+        "verified": true,
+        "reused": false
+      }
+    ]
+  }
+]

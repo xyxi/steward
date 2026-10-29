@@ -1,0 +1,11 @@
+{
+  "name": "@steward/dsh-bundle-slarm",
+  "version": "0.0.1",
+  "private": true,
+  "description": "SLARM reconstruction tools for the World Harness.",
+  "type": "module",
+  "files": ["cordis.patch.yml"],
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "engines": { "dsh": ">=0.2.1-rc.3 <0.3.0" },
+  "dependencies": { "@steward/dsh-slarm-client": "workspace:*", "@steward/dsh-tool-slarm": "workspace:*" }
+}

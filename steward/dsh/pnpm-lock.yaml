@@ -26,9 +26,15 @@ importers:
       '@steward/dsh-robot-safety':
         specifier: workspace:*
         version: link:packages/dsh-robot-safety
+      '@steward/dsh-slarm-client':
+        specifier: workspace:*
+        version: link:packages/dsh-slarm-client
       '@steward/dsh-tool-ego':
         specifier: workspace:*
         version: link:packages/dsh-tool-ego
+      '@steward/dsh-tool-slarm':
+        specifier: workspace:*
+        version: link:packages/dsh-tool-slarm
       '@steward/dsh-tool-world':
         specifier: workspace:*
         version: link:packages/dsh-tool-world
@@ -50,6 +56,15 @@ importers:
       '@steward/dsh-tool-ego':
         specifier: workspace:*
         version: link:../dsh-tool-ego
+
+  packages/dsh-bundle-slarm:
+    dependencies:
+      '@steward/dsh-slarm-client':
+        specifier: workspace:*
+        version: link:../dsh-slarm-client
+      '@steward/dsh-tool-slarm':
+        specifier: workspace:*
+        version: link:../dsh-tool-slarm
 
   packages/dsh-bundle-world:
     dependencies:
@@ -101,11 +116,50 @@ importers:
         specifier: 3.18.5
         version: 3.18.5
 
+  packages/dsh-slarm:
+    dependencies:
+      '@deepseek-ai/dsh-brand':
+        specifier: 0.2.1-rc.3
+        version: 0.2.1-rc.3(@deepseek-ai/cordis@4.0.5)
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.5
+        version: 4.0.5(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)
+
+  packages/dsh-slarm-client:
+    dependencies:
+      '@steward/dsh-slarm':
+        specifier: workspace:*
+        version: link:../dsh-slarm
+      zod:
+        specifier: ^4.4.3
+        version: 4.6.7
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.5
+        version: 4.0.5(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)
+      '@deepseek-ai/schemastery':
+        specifier: 3.18.5
+        version: 3.18.5
+
   packages/dsh-tool-ego:
     dependencies:
       '@steward/dsh-ego':
         specifier: workspace:*
         version: link:../dsh-ego
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.5
+        version: 4.0.5(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)
+      '@deepseek-ai/dsh-tools':
+        specifier: 0.2.1-rc.3
+        version: 0.2.1-rc.3(216a232736cc22d421973382c4e97320)
+
+  packages/dsh-tool-slarm:
+    dependencies:
+      '@steward/dsh-slarm':
+        specifier: workspace:*
+        version: link:../dsh-slarm
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.5

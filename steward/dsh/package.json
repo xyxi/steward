@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc -b",
     "clean": "tsc -b --clean",
-    "test": "tsc -b && node --test test/*.test.mjs"
+    "test": "tsc -b && node --test test/*.test.mjs",
+    "test:slarm": "tsc -b && node --test test/slarm.test.mjs test/slarm-snapshot.test.mjs",
+    "test:slarm:live": "tsc -b && node --test test/slarm-live.test.mjs"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
@@ -17,6 +19,8 @@
     "@steward/dsh-robot-safety": "workspace:*",
     "@steward/dsh-tool-ego": "workspace:*",
     "@steward/dsh-tool-world": "workspace:*",
+    "@steward/dsh-slarm-client": "workspace:*",
+    "@steward/dsh-tool-slarm": "workspace:*",
     "@types/node": "^24.0.0",
     "typescript": "^6.0.3"
   },

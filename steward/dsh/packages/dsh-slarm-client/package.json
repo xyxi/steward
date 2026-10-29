@@ -1,0 +1,14 @@
+{
+  "name": "@steward/dsh-slarm-client",
+  "version": "0.0.1",
+  "private": true,
+  "description": "SLARM HTTP provider with durable request identities and verified artifact downloads.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": { ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" } },
+  "files": ["lib"],
+  "dependencies": { "@steward/dsh-slarm": "workspace:*", "zod": "^4.4.3" },
+  "peerDependencies": { "@deepseek-ai/cordis": "^4.0.5", "@deepseek-ai/schemastery": "^3.18.5" },
+  "devDependencies": { "@deepseek-ai/cordis": "4.0.5", "@deepseek-ai/schemastery": "3.18.5" }
+}

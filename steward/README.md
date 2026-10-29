@@ -1,8 +1,10 @@
 # Steward
 
-Steward 是基于 DeepSeek Harness 的具身智能机器人系统。设计见仓库根目录的 [steward.md](../steward.md)，当前实现进度与运行命令见其中的「13. Implementation Progress」。
+English | [中文](README.zh.md)
 
-## 快速开始
+Steward is an embodied robotics system built on DeepSeek Harness. See [steward.md](../steward.md) for the design and its “13. Implementation Progress” section for implementation progress and launch commands.
+
+## Quick start
 
 ```sh
 uv sync
@@ -13,9 +15,9 @@ open http://127.0.0.1:7400/console   # 浏览器控制台：斜视主视图、�
 ./scripts/check.sh              # Python 测试、DSH 插件编译与测试、组合配置快照比对
 ```
 
-## 与 DeepSeek Harness 一起运行
+## Run with DeepSeek Harness
 
-Windows 完成本地依赖安装和 profile 创建后，可双击 `run_windows.bat` 启动世界与机器人服务；该文件配置本地 Python 依赖路径，并让机器人子进程使用基础 Python 解释器。
+On Windows, after installing local dependencies and creating profiles, double-click `run_windows.bat` to launch the world and robot services. It sets the local Python dependency path and uses the base Python interpreter for robot subprocesses.
 
 ```sh
 echo 'DEEPSEEK_API_KEY=sk-...' > .env     # 已被 Git 忽略，运行脚本自动加载
@@ -26,21 +28,25 @@ echo 'DEEPSEEK_API_KEY=sk-...' > .env     # 已被 Git 忽略，运行脚本自�
 ./scripts/run-world.sh --port 3091        # World Harness 浏览器界面
 ```
 
-`ego` profile 是机器人的 Ego Harness，只能经 Ego API 感知与行动，shell、文件、网页等通用工具已禁用；`world` 与 `world-task` profile 是 World Harness，经世界控制接口构建资产、组合场景、控制 Episode。机器人与世界使用不同的 `DSH_HOME`。
+The `ego` profile is the robot's Ego Harness: it observes and acts through the Ego API, with general shell, file and web tools disabled. The `world` and `world-task` profiles build assets, compose scenes and control Episodes through the World Control API. Robot and world profiles use separate `DSH_HOME` directories.
 
-控制台对话在 Windows 使用 `dsh.cmd`，在 macOS/Linux 使用 `dsh`，通过 UTF-8 传输提示词和运行事件。停止机器人对话会结束 Harness 进程树，并在请求停止机器人动作后交还控制权；动作停止请求失败时，控制台会显示错误。
+Console chat uses `dsh.cmd` on Windows and `dsh` on macOS/Linux, with UTF-8 prompts and run events. Stopping robot chat terminates its Harness process tree and returns control after requesting that robot actions stop. The console reports a failed action-stop request.
 
-## 目录
+## Directory layout
 
-| 路径 | 内容 |
+| Path | Contents |
 |---|---|
-| `src/steward/scene` | WS 与 ES 共用的 SceneState、校验器、MJCF 转换 |
-| `src/steward/assets`、`authoring` | 资产生成、校验、预览、资产库；场景与 Scenario |
-| `src/steward/world` | WSim 与 Steward 主机（WCA、机器人端口） |
-| `src/steward/ego` | Ego Runtime：估计器、ESim、技能、Ego API |
-| `src/steward/observer` | ES 与 World State 的对比评估 |
-| `dsh/` | DeepSeek Harness 插件与 bundle（锁定 `@deepseek-ai/dsh@0.2.1-rc.3`） |
-| `scripts/` | profile 创建、检查、多种子回归 |
-| `compat/snapshots` | 组合配置快照 |
+| `src/steward/scene` | SceneState, validators and MJCF conversion shared by WS and ES |
+| `src/steward/assets`, `authoring` | Asset generation, validation, previews and catalog; scenes and Scenarios |
+| `src/steward/world` | WSim and Steward host (WCA and robot ports) |
+| `src/steward/ego` | Ego Runtime: estimator, ESim, skills and Ego API |
+| `src/steward/observer` | Comparison of ES with World State |
+| `dsh/` | DeepSeek Harness plugins and bundles pinned to `@deepseek-ai/dsh@0.2.1-rc.3` |
+| `scripts/` | Profile setup, checks and multi-seed regression |
+| `compat/snapshots` | Composed configuration snapshots |
 
-运行数据写入 `var/`，不纳入版本管理。
+Runtime data lives in `var/` and is excluded from version control.
+
+## Remote 4D reconstruction
+
+The World Harness uses SLARM tools to upload compliant Waymo ZIPs, submit reconstruction, query progress, cancel tasks and download point clouds and videos with size and SHA256 verification. On Windows run `.\scripts\setup-slarm.ps1`, restart Steward, then provide the ZIP path in the World Harness chat. See the [SLARM guide](dsh/packages/dsh-bundle-slarm/README.md) for input requirements, example prompts and storage locations.

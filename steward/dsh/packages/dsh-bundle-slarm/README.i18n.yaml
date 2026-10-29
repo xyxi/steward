@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write steward/dsh/packages/dsh-bundle-slarm/README.md
+/:
+  en: 812560b8c0fa5559
+  zh: 1065e8ea969c4f34
+/steward-dsh-bundle-slarm:
+  en: 11a2f94d9b0f18bb
+  zh: fe73c1e259e46cdb
+/steward-dsh-bundle-slarm/summary:
+  en: 8aa930a412a39815
+  zh: a9b8fa25314d83a1
+/steward-dsh-bundle-slarm/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 6e85873f6f5f222a
+/steward-dsh-bundle-slarm/use-this-package:
+  en: fe2703b102a0d1dc
+  zh: a9356d9e5152025c
+/steward-dsh-bundle-slarm/understand-the-implementation:
+  en: 753adc64fc6403d9
+  zh: 1bf1073423fd00c7
+/steward-dsh-bundle-slarm/further-exploration:
+  en: 619e836c25a44abb
+  zh: e3a62834ba281a08
+/steward-dsh-bundle-slarm/model-experience:
+  en: 2f2cf0a86509c9e9
+  zh: b9b59dc82dfedd6d
+/steward-dsh-bundle-slarm/known-limitations-and-deferred-work:
+  en: 26d0a9b8bb5a1acc
+  zh: 055633e5e178087c
+/steward-dsh-bundle-slarm/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

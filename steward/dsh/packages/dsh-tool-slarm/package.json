@@ -1,0 +1,14 @@
+{
+  "name": "@steward/dsh-tool-slarm",
+  "version": "0.0.1",
+  "private": true,
+  "description": "DSH tools for SLARM upload, reconstruction, progress, cancellation and result downloads.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": { ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" } },
+  "files": ["lib"],
+  "dependencies": { "@steward/dsh-slarm": "workspace:*" },
+  "peerDependencies": { "@deepseek-ai/cordis": "^4.0.5", "@deepseek-ai/dsh-tools": "0.2.1-rc.3" },
+  "devDependencies": { "@deepseek-ai/cordis": "4.0.5", "@deepseek-ai/dsh-tools": "0.2.1-rc.3" }
+}
