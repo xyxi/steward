@@ -182,6 +182,10 @@ importers:
         version: 0.2.1-rc.3(216a232736cc22d421973382c4e97320)
 
   packages/dsh-world:
+    dependencies:
+      '@deepseek-ai/dsh-brand':
+        specifier: 0.2.1-rc.3
+        version: 0.2.1-rc.3(@deepseek-ai/cordis@4.0.5)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.5

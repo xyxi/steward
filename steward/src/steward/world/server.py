@@ -34,6 +34,7 @@ from steward.viewloop import ViewLoop, ViewSettings, frame_response
 from steward.world.sim import EditError, PerceptionConfig, WorldSim
 from steward.world.world_view import WorldViewRenderer
 from steward.world.cameras import CameraPipeline
+from steward.world.capture import CaptureManager
 
 
 def image_format(query: dict) -> str:
@@ -72,6 +73,7 @@ class StewardHost:
         self.perception_alerts: list[dict] = []
         self._paused_by_monitor = False
         self.cameras = CameraPipeline(self._require_sim)
+        self.captures = CaptureManager(self._require_sim, self.cameras, Path(root) / "captures")
         self._alert_lock = threading.Lock()
         self.bind_wait_s = bind_wait_s
         self.wca = JsonServer(self._wca_routes(), port=wca_port, name="wca", bind_wait_s=bind_wait_s)
@@ -88,6 +90,7 @@ class StewardHost:
     # --------------------------------------------------------------- episodes
     def load_episode(self, name: str) -> dict:
         scenario = self.authoring.load_scenario(name)
+        self.captures.interrupt("场景已切换，请重新采集")
         if self.sim is not None:
             self.sim.stop()
         self.sim = WorldSim(scenario["sceneState"], speed=self.speed, seed=self.seed,
@@ -174,6 +177,7 @@ class StewardHost:
             server.stop()
         self.wca.stop()
         self.world_view.stop()
+        self.captures.close()
         self.cameras.close()
         if self.sim is not None:
             self.sim.stop()
@@ -202,6 +206,7 @@ class StewardHost:
                 return self.on_main(load)
             if action == "reset":
                 sim = self._require_sim()
+                self.captures.interrupt("场景已重置，请重新采集")
                 self.on_main(sim.reset)
                 self.observer.reset()
                 return {"reset": True}
@@ -266,9 +271,13 @@ class StewardHost:
             ("POST", "/wca/clock"): guard(clock),
             ("POST", "/wca/episode"): guard(episode),
             ("GET", "/wca/render"): guard(render),
-            ("GET", "/wca/cameras"): guard(lambda q, b: self.cameras.state(q["robot"])),
+            ("GET", "/wca/cameras"): guard(lambda q, b: {**self.cameras.state(q["robot"]),
+                                                       "capture": self.captures.latest(q["robot"])}),
             ("POST", "/wca/cameras"): guard(lambda q, b: self.cameras.set_mode(b["robot"], b["mode"])),
             ("GET", "/wca/cameras/frame"): guard(lambda q, b: self.cameras.preview(q["robot"])),
+            ("POST", "/wca/capture"): guard(lambda q, b: self.captures.start(b)),
+            ("GET", "/wca/capture"): guard(lambda q, b: self.captures.status(q["capture_id"], q.get("wait_seconds", 0))),
+            ("POST", "/wca/capture/cancel"): guard(lambda q, b: self.captures.get(b["capture_id"]).cancel()),
             ("GET", "/observer/latest"): guard(lambda q, b: self.observer.latest),
             ("GET", "/observer/report"): guard(lambda q, b: self.observer.report()),
             ("GET", "/assets/generators"): guard(lambda q, b: {"generators": a.generators()}),

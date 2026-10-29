@@ -49,6 +49,7 @@ export type OutputKind = typeof outputKinds[number]
 export interface UploadRequest {
   archivePath: string
   requestKey: string
+  format: 'waymo_slarm_v1' | 'slarm_scene_v1'
 }
 
 /** Explicit resolved request; end excludes that frame and outputs are never implicitly added. */

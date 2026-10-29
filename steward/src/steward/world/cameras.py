@@ -167,3 +167,20 @@ class CameraPipeline:
             self._closed = True
             self._worker.submit(self._renderer.close).result()
             self._worker.shutdown(wait=True)
+
+    def reserve_capture(self, robot: str) -> None:
+        """Freeze camera mode until the recording owner releases its reservation."""
+        with self._lock:
+            if self._closed:
+                raise HttpError(503, "相机服务已关闭")
+            if self._capture_robot is not None:
+                raise HttpError(409, "已有相机采集任务，请等待完成或取消")
+            if self._modes.get(robot, "single") != "triple":
+                raise HttpError(409, "请先切换到三相机模式")
+            self._capture_robot = robot
+
+    def release_capture(self, robot: str) -> None:
+        """Release the matching recording's mode reservation after all local work settles."""
+        with self._lock:
+            if self._capture_robot == robot:
+                self._capture_robot = None

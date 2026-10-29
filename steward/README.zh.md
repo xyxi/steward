@@ -55,4 +55,6 @@ World Control API 提供 `GET/POST /wca/cameras`（robot、mode）及 `GET /wca/
 
 ## 远程 4D 重建
 
-World Harness 可通过 SLARM 工具上传合规 Waymo ZIP、提交重建、查询进度、取消任务，并下载经过大小和 SHA256 校验的点云与视频。Windows 安装命令是 `.\scripts\setup-slarm.ps1`；安装后重启 Steward，在“世界 · World Harness”对话中给出 ZIP 路径。输入格式、示例提示词及存储位置见 [SLARM 使用说明](dsh/packages/dsh-bundle-slarm/README.zh.md)。
+World Harness 可通过 SLARM 工具上传合规 ZIP、提交重建、查询进度、取消任务，并下载经过大小和 SHA256 校验的点云与视频。Windows 安装命令是 `.\scripts\setup-slarm.ps1`；安装后重启 Steward，在“世界 · World Harness”对话中给出 ZIP 路径。输入格式、示例提示词及存储位置见 [SLARM 使用说明](dsh/packages/dsh-bundle-slarm/README.zh.md)。
+
+三相机模式下，**采集 16 帧** 按每秒 10 个仿真时刻记录 48 张图片，并显示进度、取消操作和完成后的 ZIP 路径。要执行完整流程，可向 World Harness 发送：“用 w:robot-1 的三相机按 10fps 采集 16 帧，调用 SLARM 重建并下载全部点云和两种视频。”仿真必须继续推进；采集不会指挥机器人移动。采集期间禁止切换相机模式。录制限制、坐标含义和失败恢复见 [SLARM 使用说明](dsh/packages/dsh-bundle-slarm/README.zh.md#use-this-package)。

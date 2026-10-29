@@ -4,6 +4,15 @@ import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fixture } from './slarm-fixture.mjs'
 
+test('generic camera ZIP uses /v1/datasets and cannot reuse a Waymo operation key', async t => {
+  const f = await fixture(t)
+  const uploaded = await f.call('slarm_upload', { ...f.upload, format: 'slarm_scene_v1' })
+  assert.equal(uploaded.dataset_id, 'ds_one')
+  assert.ok(f.calls.some(([method, url]) => method === 'POST' && url === '/slarm/v1/datasets'))
+  await assert.rejects(f.call('slarm_upload', f.upload), /LOCAL_IDEMPOTENCY_CONFLICT/)
+  assert.equal(f.state.uploadCount, 1)
+})
+
 test('SLARM tools upload, resume after client restart, and preserve /slarm', async t => {
   const f = await fixture(t)
   const uploaded = await f.call('slarm_upload', f.upload)

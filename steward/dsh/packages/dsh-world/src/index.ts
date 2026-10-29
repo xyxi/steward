@@ -8,6 +8,22 @@
  */
 
 import { Service, type Context } from '@deepseek-ai/cordis'
+import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
+
+/** Process-local identity of a synchronized camera recording. */
+export type CaptureId = Branded<'StewardCaptureId'>
+
+/** Parse a capture identity from tool JSON.
+ * @param value - identity returned by world_capture.
+ * @returns validated identity.
+ */
+export function captureId(value: string): CaptureId {
+  if (!/^cap_[a-f0-9]{32}$/.test(value)) throw new Error('Invalid capture_id; use the id returned by world_capture.')
+  return brandString<CaptureId>(value)
+}
+
+/** Explicit recording settings in simulation time. */
+export interface CaptureRequest { robot: string; frames: number; fps: number }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -62,6 +78,36 @@ export abstract class WorldService extends Service {
    * @returns the status record.
    */
   abstract status(signal?: AbortSignal): Promise<JsonObject>
+
+  /** Read or switch camera mode. Original robot sensor APIs remain available.
+   * @param robot - world robot id.
+   * @param mode - desired mode; undefined reads status.
+   * @param signal - caller cancellation.
+   * @returns mode and recording state.
+   */
+  abstract cameras(robot: string, mode: 'single' | 'triple' | undefined, signal?: AbortSignal): Promise<JsonObject>
+
+  /** Start synchronized recording; stopping an HTTP request does not cancel accepted work.
+   * @param request - resolved frame count, rate and robot.
+   * @param signal - caller cancellation.
+   * @returns process-local capture id and initial state.
+   */
+  abstract capture(request: CaptureRequest, signal?: AbortSignal): Promise<JsonObject>
+
+  /** Read recording progress. Only succeeded supplies a usable archive_path.
+   * @param id - capture identity.
+   * @param waitSeconds - terminal wait, 0 to 20 seconds.
+   * @param signal - caller cancellation.
+   * @returns progress or terminal export metadata.
+   */
+  abstract captureStatus(id: CaptureId, waitSeconds: number, signal?: AbortSignal): Promise<JsonObject>
+
+  /** Request cancellation; poll until cancelled before reporting cleanup complete.
+   * @param id - capture identity.
+   * @param signal - caller cancellation.
+   * @returns current cancellation state.
+   */
+  abstract cancelCapture(id: CaptureId, signal?: AbortSignal): Promise<JsonObject>
 
   /**
    * The current World State as a SceneState.

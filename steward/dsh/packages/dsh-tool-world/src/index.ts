@@ -10,6 +10,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool, type InferValue, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { JsonObject, WorldEditRequest, WorldService } from '@steward/dsh-world'
+import { captureId } from '@steward/dsh-world'
 
 export const name = 'steward-tool-world'
 export const inject = ['tools', 'world']
@@ -46,6 +47,43 @@ const TEMPLATE_GUIDE = 'An entity template is a World State Entity with id "w:te
  */
 export function worldTools(world: WorldService): ToolDefinition[] {
   return [
+    defineTool({
+      name: 'world_cameras',
+      description: 'Read or switch single/triple cameras for a world robot. Triple mode adds left/right views with the original calibration. '
+        + 'During recording mode changes are rejected. Status includes the latest capture; inspect it after a lost start response before retrying.',
+      parameters: { robot: { type: 'string', required: true, description: 'World robot id, e.g. w:robot-1.' },
+        mode: { type: 'string', enum: ['single', 'triple'], description: 'Omit to read current mode and latest capture.' } },
+      output: { schema: JSON_OUTPUT, render: (_a, v) => text(v) },
+      execute: async (args, exec) => json(await world.cameras(args.robot, args.mode, exec.signal)),
+    }),
+    defineTool({
+      name: 'world_capture',
+      description: 'Record a synchronized three-camera sequence in simulation time. Requires triple mode and a running clock. '
+        + 'Does not move the robot. Poses are simulation ground truth, not SLAM estimates. Returns capture_id, not a finished ZIP. '
+        + 'Poll world_capture_status; upload only a succeeded archive_path using slarm_upload format=slarm_scene_v1. '
+        + 'HTTP abort does not cancel recording; use world_capture_cancel. After a lost response query world_cameras before retrying.',
+      parameters: { robot: { type: 'string', required: true },
+        frames: { type: 'number', description: 'Integer 16-256 time frames; default 16, yielding 48 images.' },
+        fps: { type: 'number', description: 'Simulation-time rate, 1-30; period must align with physics steps. Default 10.' } },
+      output: { schema: JSON_OUTPUT, render: (_a, v) => text(v) },
+      execute: async (args, exec) => json(await world.capture({ robot: args.robot, frames: args.frames ?? 16, fps: args.fps ?? 10 }, exec.signal)),
+    }),
+    defineTool({
+      name: 'world_capture_status',
+      description: 'Read capture progress; wait_seconds may wait 0-20 seconds. Failed/cancelled recordings have no usable ZIP. '
+        + 'Capture handles expire on host restart; completed ZIP files persist. Report errors, never substitute duplicated frames.',
+      parameters: { capture_id: { type: 'string', required: true }, wait_seconds: { type: 'number' } },
+      output: { schema: JSON_OUTPUT, render: (_a, v) => text(v) },
+      execute: async (args, exec) => json(await world.captureStatus(captureId(args.capture_id), args.wait_seconds ?? 0, exec.signal)),
+    }),
+    defineTool({
+      name: 'world_capture_cancel',
+      description: 'Request cancellation of one local capture. Poll world_capture_status until cancelled; cancelling alone is not confirmation. '
+        + 'This does not cancel a separately submitted SLARM reconstruction.',
+      parameters: { capture_id: { type: 'string', required: true } },
+      output: { schema: JSON_OUTPUT, render: (_a, v) => text(v) },
+      execute: async (args, exec) => json(await world.cancelCapture(captureId(args.capture_id), exec.signal)),
+    }),
     defineTool({
       name: 'world_status',
       description: 'Read the loaded scenario, simulation time and speed, entities, robots (what they hold) and recent '

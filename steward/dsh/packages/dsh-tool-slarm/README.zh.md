@@ -31,6 +31,8 @@ kind: "package-reference"
 
 上传和重建要求稳定的 `request_key`。轮询等待默认是零；`evaluate` 默认 false。必须显式选择输出类型。重建跨越多个窗口时，下载应包括全部 pointcloud 产物 ID。
 
+`slarm_upload.format` 默认是 `waymo_slarm_v1`；上传成功的 `world_capture` 导出时选择 `slarm_scene_v1`。采集工具和坐标约定见 [bundle 说明](../dsh-bundle-slarm/README.zh.md#use-this-package)。
+
 只有经过校验的结果返回 `completed: true`，才可报告重建完成。只有经校验的下载回执才表示本地文件就绪。`cancelling` 表示处理中，`cancelled` 状态才表示取消完成。结果过期或传输失败须与重建成功分别报告。
 
 

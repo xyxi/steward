@@ -55,4 +55,6 @@ The World Control API exposes `GET/POST /wca/cameras` (robot, mode) and `GET /wc
 
 ## Remote 4D reconstruction
 
-The World Harness uses SLARM tools to upload compliant Waymo ZIPs, submit reconstruction, query progress, cancel tasks and download point clouds and videos with size and SHA256 verification. On Windows run `.\scripts\setup-slarm.ps1`, restart Steward, then provide the ZIP path in the World Harness chat. See the [SLARM guide](dsh/packages/dsh-bundle-slarm/README.md) for input requirements, example prompts and storage locations.
+The World Harness uses SLARM tools to upload compliant ZIPs, submit reconstruction, query progress, cancel tasks and download point clouds and videos with size and SHA256 verification. On Windows run `.\scripts\setup-slarm.ps1`, restart Steward, then provide the ZIP path in the World Harness chat. See the [SLARM guide](dsh/packages/dsh-bundle-slarm/README.md) for input requirements, example prompts and storage locations.
+
+In triple mode, **采集 16 帧** records 48 images at 10 simulation frames per second and displays progress, cancellation and the completed ZIP path. To run the whole flow, ask World Harness: “Use w:robot-1's three cameras to capture 16 frames at 10 fps, reconstruct them with SLARM, and download all point clouds and both videos.” The simulator must be advancing; capture does not command robot motion. Camera switching is locked during capture. The [SLARM guide](dsh/packages/dsh-bundle-slarm/README.md#use-this-package) documents recording limits, coordinates and failure recovery.

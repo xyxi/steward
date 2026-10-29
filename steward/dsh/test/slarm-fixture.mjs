@@ -18,9 +18,12 @@ export async function fixture(t, options = {}) {
   await writeFile(join(root, 'scene.zip'), archive)
   const calls = []
   const keys = new Map()
+  const captureId = 'cap_' + '1'.repeat(32)
+  const captureState = { capture_id: captureId, robot: 'w:robot-1', frame_count: 21, fps: 10,
+    format: 'slarm_scene_v1', pose_source: 'simulation_ground_truth' }
   const state = { dataset: 'ready', job: 'running', postCount: 0, uploadCount: 0, brokenDownload: false,
     malformedPath: false, dropSubmission: false, cancelChecks: 0, metadata: null,
-    capabilityError: null, holdDownload: null, submissionDataset: 'ds_one', resultDataset: 'ds_one' }
+    capabilityError: null, holdDownload: null, submissionDataset: 'ds_one', resultDataset: 'ds_one', format: 'waymo_slarm_v1' }
   const bytes = Buffer.from('verified pointcloud fixture')
   const makeArtifact = (n, kind) => ({ artifact_id: `art_${n}`, kind, filename: kind === 'pointcloud' ? 'points.npz' : 'video.mp4',
     media_type: 'application/octet-stream', bytes: bytes.length, sha256: hash(bytes),
@@ -28,7 +31,7 @@ export async function fixture(t, options = {}) {
     expires_at: '2099-01-01T00:00:00Z', frame_indices: [n - 1] })
   const manifest = () => ({ schema_version: '1.0', reconstruction_id: 'rec_one', dataset_id: state.resultDataset, model: { id: 'fixture' },
     archive_sha256: hash(archive), frame_range: { start: 0, end: 21 }, frame_indices: Array.from({ length: 21 }, (_, i) => i),
-    camera_ids: ['front_left', 'front', 'front_right'], coordinates: { axes: 'FLU', unit: 'm' },
+    camera_ids: state.format === 'slarm_scene_v1' ? ['camera_0_left', 'camera_1_center', 'camera_2_right'] : ['front_left', 'front', 'front_right'], coordinates: { axes: 'FLU', unit: 'm' },
     quality_status: 'ok', warnings: [], metrics: [{ value: null }],
     summary: { valid_point_count: 12, windows: [
       { context_frame_indices: [0, 5, 10, 15], target_frame_indices: Array.from({ length: 16 }, (_, i) => i) },
@@ -39,26 +42,43 @@ export async function fixture(t, options = {}) {
     try {
       calls.push([req.method, req.url, req.headers['idempotency-key']])
       const json = (body, code = 200) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)) }
+      if (req.url === '/slarm/wca/status') return json({ paused: false, loaded: true, t: 0, speed: 1, robots: ['w:robot-1'] })
+      if (req.url.startsWith('/slarm/wca/cameras?')) return json({ robot: 'w:robot-1', mode: 'triple', capture_active: false })
+      if (req.url === '/slarm/wca/cameras' && req.method === 'POST') {
+        const chunks = []; for await (const chunk of req) chunks.push(chunk)
+        assert.deepEqual(JSON.parse(Buffer.concat(chunks)), { robot: 'w:robot-1', mode: 'triple' })
+        return json({ robot: 'w:robot-1', mode: 'triple', capture_active: false })
+      }
+      if (req.url === '/slarm/wca/capture' && req.method === 'POST') {
+        const chunks = []; for await (const chunk of req) chunks.push(chunk)
+        assert.deepEqual(JSON.parse(Buffer.concat(chunks)), { robot: 'w:robot-1', frames: 21, fps: 10 })
+        return json({ ...captureState, status: 'capturing', archive_path: null })
+      }
+      if (req.url.startsWith('/slarm/wca/capture?')) {
+        assert.equal(new URL(req.url, 'http://local').searchParams.get('capture_id'), captureId)
+        return json({ ...captureState, status: 'succeeded', written_frames: 21, archive_path: 'scene.zip' })
+      }
       if (req.url === '/slarm/v1/capabilities') {
         if (state.capabilityError) {
           const { status, retryable, retryAfter } = state.capabilityError
           res.setHeader('Retry-After', retryAfter)
           return json({ error: { code: 'FIXTURE_ERROR', message: 'temporary', retryable } }, status)
         }
-        return json({ ready: true, input_formats: ['waymo_slarm_v1'], limits: { upload_bytes: 1024 } })
+        return json({ ready: true, input_formats: ['waymo_slarm_v1', 'slarm_scene_v1'], limits: { upload_bytes: 1024 } })
       }
-      if (req.url === '/slarm/v1/waymo/datasets') {
+      if (req.url === '/slarm/v1/waymo/datasets' || req.url === '/slarm/v1/datasets') {
         state.uploadCount++
         const chunks = []; for await (const chunk of req) chunks.push(chunk)
         const multipart = new Request('http://local/upload', { method: 'POST', headers: { 'content-type': req.headers['content-type'] }, body: Buffer.concat(chunks) })
         const form = await multipart.formData()
         assert.equal(form.get('archive_sha256'), hash(archive))
-        assert.equal(form.get('format'), 'waymo_slarm_v1')
+        assert.equal(form.get('format'), req.url === '/slarm/v1/datasets' ? 'slarm_scene_v1' : 'waymo_slarm_v1')
+        state.format = form.get('format')
         assert.deepEqual(Buffer.from(await form.get('archive').arrayBuffer()), archive)
         return json({ id: 'ds_one', status: 'validating' }, 202)
       }
       if (req.url === '/slarm/v1/datasets/ds_one') return json({ id: 'ds_one', status: state.dataset,
-        scene: state.dataset === 'ready' ? { frame_count: 32 } : null, issues: [], warnings: [], expires_at: null })
+        scene: state.dataset === 'ready' ? { frame_count: state.format === 'slarm_scene_v1' ? 21 : 32 } : null, issues: [], warnings: [], expires_at: null })
       if (req.url === '/slarm/v1/reconstructions') {
         let text = ''; for await (const chunk of req) text += chunk
         const key = req.headers['idempotency-key']
@@ -79,7 +99,7 @@ export async function fixture(t, options = {}) {
         res.writeHead(200); res.end(state.brokenDownload ? Buffer.alloc(bytes.length) : bytes); return
       }
       json({ error: { code: 'NOT_FOUND', message: 'missing', retryable: false } }, 404)
-    } catch (error) { res.writeHead(500); res.end(JSON.stringify({ error: { message: String(error) } })) }
+    } catch (error) { res.writeHead(500); res.end(JSON.stringify({ error: String(error) })) }
   })
   server.listen(0, '127.0.0.1'); await once(server, 'listening')
   const contexts = []

@@ -176,23 +176,23 @@ export class SlarmClient extends SlarmService {
       const caps = await this.capabilities(signal)
       const limits = protocol.parse(z.object({ limits: z.object({ upload_bytes: z.number().positive() }),
         input_formats: z.array(z.string()) }), caps)
-      if (!limits.input_formats.includes('waymo_slarm_v1')) throw new SlarmError('Service does not accept Waymo ZIP.', 'UNSUPPORTED_FORMAT')
+      if (!limits.input_formats.includes(request.format)) throw new SlarmError(`Service does not accept ${request.format}.`, 'UNSUPPORTED_FORMAT')
       if (!info.isFile() || info.size === 0 || info.size > Math.min(this.config.maxUploadBytes, limits.limits.upload_bytes)) {
         throw new SlarmError('Archive is empty, not a file, or exceeds the upload limit.', 'INVALID_ARCHIVE')
       }
       const hash = await fileDigest(path, signal)
-      const payload = { archive_sha256: hash, filename: basename(path), format: 'waymo_slarm_v1', bytes: info.size }
+      const payload = { archive_sha256: hash, filename: basename(path), format: request.format, bytes: info.size }
       const record = await reserve(this.root, this.base, 'upload', request.requestKey, payload)
       let accepted: JsonObject | undefined
       try { accepted = await load(record.path + '.response.json') } catch (error) { if (!hasCode(error, 'ENOENT')) throw error }
       if (!accepted) {
-        accepted = await this.json('/v1/waymo/datasets', async () => {
+        accepted = await this.json(request.format === 'slarm_scene_v1' ? '/v1/datasets' : '/v1/waymo/datasets', async () => {
           const now = await stat(path)
           if (now.size !== info.size || now.mtimeMs !== info.mtimeMs) throw new SlarmError('Archive changed during upload; use a stable ZIP.', 'INPUT_CHANGED')
           const form = new FormData()
           form.set('archive', await openAsBlob(path, { type: 'application/zip' }), basename(path))
           form.set('archive_sha256', hash)
-          form.set('format', 'waymo_slarm_v1')
+          form.set('format', request.format)
           return { method: 'POST', headers: { 'Idempotency-Key': record.key }, body: form }
         }, signal, this.config.uploadTimeoutMs)
         datasetId(protocol.parse(z.object({ id: z.string() }), accepted).id)
@@ -287,7 +287,7 @@ export class SlarmClient extends SlarmService {
       const data = protocol.parse(protocol.result, value)
       const contexts = data.summary.windows.map(window => window.context_frame_indices)
       return { ...protocol.pick(value, ['schema_version', 'reconstruction_id', 'dataset_id', 'scene_name', 'model',
-        'archive_sha256', 'frame_range', 'frame_indices', 'timestamps_s', 'camera_ids', 'resolution_hw', 'coordinates',
+        'archive_sha256', 'frame_range', 'frame_indices', 'timestamps_s', 'camera_ids', 'reference_camera', 'resolution_hw', 'coordinates',
         'motion', 'semantic_labels', 'summary', 'quality_status', 'warnings', 'evaluation_requested', 'metrics', 'expires_at']),
         completed: true, model_calls: contexts.length,
         input_image_occurrences: contexts.reduce((sum, frames) => sum + frames.length, 0) * data.camera_ids.length,

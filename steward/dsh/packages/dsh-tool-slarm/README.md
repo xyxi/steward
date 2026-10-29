@@ -31,6 +31,8 @@ The agent reads `slarm_capabilities`, uploads with `slarm_upload`, and queries `
 
 Upload and reconstruction require stable `request_key` values. Polling waits default to zero; `evaluate` defaults to false. Outputs must be selected explicitly. Use all pointcloud artifact ids when a reconstruction spans several windows.
 
+`slarm_upload.format` defaults to `waymo_slarm_v1`; choose `slarm_scene_v1` for a successful `world_capture` export. See the [bundle guide](../dsh-bundle-slarm/README.md#use-this-package) for capture tools and coordinate conventions.
+
 Only `completed: true` from a validated result permits reporting reconstruction complete. Only verified download receipts permit reporting local files ready. `cancelling` is pending; a `cancelled` status confirms cancellation. An expired result or failed transfer must be reported separately from reconstruction success.
 
 

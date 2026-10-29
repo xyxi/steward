@@ -127,6 +127,7 @@ class WorldSim:
         self.paused = False
         self.events: list[dict] = []
         self._render_requests: queue.Queue[_RenderRequest] = queue.Queue()
+        self._step_listeners = []
         self._load(self._initial_scene)
 
     # ------------------------------------------------------------------ setup
@@ -366,6 +367,22 @@ class WorldSim:
                 mujoco.mj_step(self.model, self.data)
                 self._follow_attached()
                 self.step_count += 1
+                for listener in tuple(self._step_listeners):
+                    listener()
+
+    def subscribe_steps(self, listener):
+        """Observe exact physics steps under the simulation lock; callbacks must not block or raise.
+
+        The returned disposer removes the subscription under the same lock.
+        """
+        with self.lock:
+            self._step_listeners.append(listener)
+
+        def dispose():
+            with self.lock:
+                if listener in self._step_listeners:
+                    self._step_listeners.remove(listener)
+        return dispose
 
     def step_seconds(self, seconds: float) -> None:
         self.step(max(1, int(round(seconds / self.timestep))))

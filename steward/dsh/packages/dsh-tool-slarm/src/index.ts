@@ -29,12 +29,15 @@ export function slarmTools(slarm: SlarmService): ToolDefinition[] {
       execute: (_args, exec) => slarm.capabilities(exec.signal),
     }),
     defineTool({ name: 'slarm_upload',
-      description: 'Upload a local preprocessed Waymo ZIP to SLARM. Requires all three RGB cameras, calibration, known poses and timestamps. '
+      description: 'Upload a local Waymo or slarm_scene_v1 ZIP to SLARM. Requires three synchronized RGB cameras, calibration and known poses. '
         + 'The path is on this DSH host beneath inputRoot, not the remote server. Returns dataset_id; query validation before reconstruction. '
         + 'This uploads file contents to the configured server. Aborting the HTTP call does not delete accepted data.',
       parameters: { archive_path: { type: 'string', required: true,
-        description: 'ZIP path relative to inputRoot, or an absolute path within it.' }, request_key: key }, output,
-      execute: (args, exec) => slarm.upload({ archivePath: args.archive_path, requestKey: args.request_key }, exec.signal),
+        description: 'ZIP path relative to inputRoot, or an absolute path within it.' }, request_key: key,
+        format: { type: 'string', enum: ['waymo_slarm_v1', 'slarm_scene_v1'],
+          description: 'Use slarm_scene_v1 for world_capture exports. Omitted means legacy waymo_slarm_v1.' } }, output,
+      execute: (args, exec) => slarm.upload({ archivePath: args.archive_path, requestKey: args.request_key,
+        format: args.format ?? 'waymo_slarm_v1' }, exec.signal),
     }),
     defineTool({ name: 'slarm_dataset_status',
       description: 'Read SLARM dataset validation. validating means wait; ready allows reconstruction; invalid means stop and report issues. No work is submitted.',

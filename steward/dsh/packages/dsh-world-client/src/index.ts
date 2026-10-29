@@ -6,7 +6,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { WorldError, WorldService } from '@steward/dsh-world'
-import type { AssetCreateRequest, JsonObject, WorldEditRequest } from '@steward/dsh-world'
+import type { AssetCreateRequest, JsonObject, WorldEditRequest, CaptureId, CaptureRequest } from '@steward/dsh-world'
 import { baseUrl, HttpJsonError, requestJson } from '@steward/http-json'
 
 /** Validated plugin configuration. */
@@ -47,6 +47,24 @@ export class WorldApiClient extends WorldService {
 
   status(signal?: AbortSignal): Promise<JsonObject> {
     return this.call('GET', '/wca/status', undefined, signal)
+  }
+
+  cameras(robot: string, mode: 'single' | 'triple' | undefined, signal?: AbortSignal): Promise<JsonObject> {
+    return mode === undefined
+      ? this.call('GET', `/wca/cameras?robot=${encodeURIComponent(robot)}`, undefined, signal)
+      : this.call('POST', '/wca/cameras', { robot, mode }, signal, true)
+  }
+
+  capture(request: CaptureRequest, signal?: AbortSignal): Promise<JsonObject> {
+    return this.call('POST', '/wca/capture', request, signal, true)
+  }
+
+  captureStatus(id: CaptureId, waitSeconds: number, signal?: AbortSignal): Promise<JsonObject> {
+    return this.call('GET', `/wca/capture?capture_id=${id}&wait_seconds=${waitSeconds}`, undefined, signal, true)
+  }
+
+  cancelCapture(id: CaptureId, signal?: AbortSignal): Promise<JsonObject> {
+    return this.call('POST', '/wca/capture/cancel', { capture_id: id }, signal)
   }
 
   scene(signal?: AbortSignal): Promise<JsonObject> {

@@ -215,6 +215,12 @@
         <div class="cam" id="cameraRight" hidden><div class="camera-caption">右前相机</div><img id="camRight" alt="右前相机"></div>
       </div>
       <div class="err" id="cameraError" role="status"></div>
+      <div style="padding:8px 12px">
+        <button id="captureStart" disabled>采集 16 帧</button>
+        <button id="captureCancel" hidden>取消采集</button>
+        <div class="sub" id="captureStatus" role="status" style="overflow-wrap:anywhere">切换三相机后可采集，10 fps 仿真时间</div>
+        <div class="err" id="captureError" role="status"></div>
+      </div>
     </section>
     <section class="card">
       <h2>俯视地图（蓝：真实状态　橙：自我态）</h2>
@@ -824,7 +830,32 @@ function applyCameraMode(value) {
   $('cameraMode').textContent = cameraSwitching ? '正在切换…' : triple ? '切换单相机' : '切换三相机';
   $('cameraMode').setAttribute('aria-pressed', String(triple));
   $('cameraMode').disabled = cameraSwitching || value.capture_active;
+  $('captureStart').disabled = !triple || cameraSwitching || value.capture_active;
+  if (value.capture !== undefined) applyCapture(value.capture);
 }
+let currentCapture = null;
+function applyCapture(value) {
+  currentCapture = value;
+  const active = value && !['succeeded', 'failed', 'cancelled'].includes(value.status);
+  $('captureCancel').hidden = !active;
+  $('captureCancel').disabled = value?.status === 'cancelling';
+  const labels = { capturing: '采集中', finalizing: '正在导出', cancelling: '正在取消', cancelled: '已取消', failed: '采集失败', succeeded: '采集完成' };
+  $('captureStatus').textContent = value
+    ? `${labels[value.status] || value.status} · ${value.written_frames}/${value.frame_count} 帧（三路同步）${value.error ? ' · ' + value.error : ''}${value.archive_path ? ' · ZIP：' + value.archive_path : ''}`
+    : '切换三相机后可采集，10 fps 仿真时间';
+}
+$('captureStart').onclick = async () => {
+  $('captureStart').disabled = true;
+  $('captureError').textContent = '';
+  try { applyCapture(await api('POST', '/wca/capture', { robot: robotId, frames: 16, fps: 10 })); }
+  catch (e) { $('captureError').textContent = `采集请求失败：${e.message}；请查看任务状态后再重试。`; }
+};
+$('captureCancel').onclick = async () => {
+  if (!currentCapture) return;
+  $('captureError').textContent = '';
+  try { applyCapture(await api('POST', '/wca/capture/cancel', { capture_id: currentCapture.capture_id })); }
+  catch (e) { $('captureError').textContent = `取消请求失败：${e.message}`; }
+};
 $('cameraMode').onclick = async () => {
   if (!robotId || cameraSwitching) return;
   cameraSwitching = true; applyCameraMode(cameraState);

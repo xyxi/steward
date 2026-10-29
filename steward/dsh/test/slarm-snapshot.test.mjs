@@ -7,12 +7,13 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { fixture } from './slarm-fixture.mjs'
+import { portableSession } from './slarm-recording.mjs'
 
 const workspace = resolve(import.meta.dirname, '..')
 const cliPackage = createRequire(import.meta.url).resolve('@deepseek-ai/dsh/package.json')
 const cli = join(dirname(cliPackage), 'lib/bin.js')
-const snapshot = join(import.meta.dirname, 'snapshots/slarm')
 const prompt = 'Inspect existing SLARM reconstruction rec_one with slarm_status and slarm_result. Download ALL its pointcloud and rgb_video artifacts with slarm_download. Report model calls, distinct input images, input occurrences, output views and whether all local files verified. Do not submit work, use shell/files, or print absolute paths in your final answer.'
+const capturePrompt = 'Use world_cameras to set w:robot-1 to triple. Start world_capture with 21 frames at 10 fps. Poll world_capture_status until succeeded. Upload its archive_path with slarm_upload format slarm_scene_v1 and request_key camera-snapshot-upload. Query dataset validation, then reconstruct [0,21) with pointcloud and rgb_video, request_key camera-snapshot-reconstruct. Query status, read result, download ALL artifacts. Briefly report the pose source label (do not query numeric poses), model input counts, output views and verified downloads. The world clock is running; do not change it or switch cameras back. Use only world_cameras, world_capture, world_capture_status and slarm_* tools. Do not use shell/files or print absolute paths.'
 
 async function launch(args, cwd, env) {
   const child = spawn(process.execPath, [cli, ...args], { cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -38,7 +39,9 @@ function portable(value, f) {
     .replace(/(state\/)[a-f0-9]{16}(\/)/g, '$1{{service}}$2')
 }
 
-test('SLARM headless recorded session presents verified multi-window results without a key', { timeout: 240_000 }, async t => {
+for (const capture of [false, true]) test(capture ? 'three-camera headless recorded session captures and reconstructs without a key'
+  : 'SLARM headless recorded session presents verified multi-window results without a key', { timeout: 240_000 }, async t => {
+  const snapshot = join(import.meta.dirname, 'snapshots', capture ? 'camera-slarm' : 'slarm')
   const f = await fixture(t)
   f.state.job = 'succeeded'
   const recording = process.env.SLARM_RECORD === '1'
@@ -51,6 +54,7 @@ test('SLARM headless recorded session presents verified multi-window results wit
   }
   await launch(['--profile', 'slarm-test', '--from-default-profile', 'headless', '--dump-default-config'], f.root, env)
   await launch(['plugin', '--profile', 'slarm-test', 'add', join(workspace, 'packages/dsh-bundle-slarm')], f.root, env)
+  if (capture) await launch(['plugin', '--profile', 'slarm-test', 'add', join(workspace, 'packages/dsh-bundle-world')], f.root, env)
   const patch = [
     { id: 'session-title-llm', disabled: true },
     { id: 'agent-default-model', config: { provider: 'deepseek-official', model: 'deepseek-flash' } },
@@ -58,35 +62,46 @@ test('SLARM headless recorded session presents verified multi-window results wit
     { id: 'session-persistence-jsonl', config: { root: './sessions', compression: 'none' } },
     { id: 'session-log-deepseek', config: { enabled: false } },
   ]
+  if (capture) patch.push({ id: 'steward-world-api', config: { endpoint: f.config.endpoint } })
   if (!recording) patch.push({ id: 'llm-deepseek', disabled: true }, { id: 'llm-deepseek-account', disabled: true },
     { insert: [{ id: 'llm-replay', name: pathToFileURL(createRequire(cliPackage).resolve('@deepseek-ai/dsh-llm-replay')).href, config: {
       providers: [{ id: 'deepseek-official', models: [{ id: 'deepseek-flash', contextWindow: 128000 }] }],
     } }] })
   const patchPath = join(f.root, 'snapshot.patch.json')
   await writeFile(patchPath, JSON.stringify(patch))
-  const output = await launch(['--profile', 'slarm-test', '--patch', patchPath, '--json', prompt], f.root, env)
+  const output = await launch(['--profile', 'slarm-test', '--patch', patchPath, '--json', capture ? capturePrompt : prompt], f.root, env)
   const events = output.trim().split('\n').filter(line => line.startsWith('{')).map(line => JSON.parse(line))
   assert.ok(events.some(event => event.type === 'final'), 'the recorded turn finishes')
   const results = events.filter(event => event.type === 'tool_result')
-  assert.equal(results.length, 3, output)
-  assert.ok(results.every(event => event.status === 'completed'))
+  assert.ok(capture ? results.length >= 9 : results.length === 3, output)
+  assert.ok(results.every(event => event.status === 'completed'), JSON.stringify(results.filter(event => event.status !== 'completed')))
   const normalized = results.map(event => portable(JSON.parse(event.result), f))
-  assert.deepEqual(normalized.map(result => result.next_action ?? result.completed ?? result.files.length), ['slarm_result', true, 3])
-  const summary = normalized[1]
+  const calls = new Map(events.filter(event => event.type === 'tool_call').map(event => [event.callId, event.tool]))
+  const byName = name => normalized[results.findIndex(event => calls.get(event.callId) === name)]
+  const tail = normalized.slice(-3)
+  assert.deepEqual(tail.map(result => result.next_action ?? result.completed ?? result.files.length), ['slarm_result', true, 3])
+  const summary = tail[1]
   assert.equal(summary.model_calls, 2); assert.equal(summary.distinct_input_images, 15)
   assert.equal(summary.input_image_occurrences, 24); assert.equal(summary.output_images, 63)
-  assert.ok(normalized[2].files.every(file => file.verified && !file.reused))
-  assert.equal(f.state.postCount, 0)
+  assert.ok(tail[2].files.every(file => file.verified && !file.reused))
+  assert.equal(f.state.postCount, capture ? 1 : 0)
+  if (capture) {
+    assert.equal(byName('world_cameras').mode, 'triple')
+    assert.equal(byName('world_capture_status').status, 'succeeded')
+    assert.equal(byName('world_capture_status').pose_source, 'simulation_ground_truth')
+    assert.equal(f.state.uploadCount, 1)
+  }
   const transcript = JSON.stringify(normalized, null, 2) + '\n'
   if (recording) {
     const records = await readdir(join(f.root, 'sessions'), { recursive: true })
     const log = records.find(path => path.endsWith('session.v4.jsonl'))
     assert.ok(log, 'the profile persists a Session')
-    const staging = resolve(workspace, '../var/slarm-validation/snapshot')
+    const staging = resolve(workspace, '../var/slarm-validation', capture ? 'camera-snapshot' : 'snapshot')
     await mkdir(staging, { recursive: true })
     await writeFile(join(staging, 'session.raw.jsonl'), await readFile(join(f.root, 'sessions', log)))
     await writeFile(join(staging, 'recording.json'), JSON.stringify({ cwd: f.root, endpoint: f.config.endpoint }))
     await mkdir(snapshot, { recursive: true })
+    await writeFile(join(snapshot, 'session.v4.jsonl'), portableSession(await readFile(join(f.root, 'sessions', log), 'utf8'), f.root, f.config.endpoint))
     await writeFile(join(snapshot, 'tools.expected.json'), transcript)
   } else assert.equal(transcript, await readFile(join(snapshot, 'tools.expected.json'), 'utf8'))
 })
