@@ -29,6 +29,7 @@ from steward.math3d import matrix_from_quat, pose_compose, pose_inverse, quat_fr
 from steward.scene.extent import entity_body_ids, entity_obb
 from steward.scene.mjcf import MjcfBuild, build_mjcf
 from steward.scene.schema import Relation, RigidTree, SceneState, exact
+from steward.world.cameras import add_camera_rig
 
 _COLLISION_GROUPS = np.array([1, 0, 0, 1, 0, 0], dtype=np.uint8)
 HIDDEN_GROUP = 4  # not drawn by MuJoCo's default visualisation options
@@ -108,7 +109,7 @@ class _RobotState:
 class WorldSim:
     def __init__(self, scene: dict, *, timestep: float = 0.002, speed: float = 1.0, seed: int = 0,
                  perception: PerceptionConfig | None = None, grasp: GraspConfig | None = None,
-                 overview_camera: dict | None = None):
+                 overview_camera: dict | None = None, camera_offset_m: float = 0.12):
         self._initial_scene = copy.deepcopy(scene)
         self.timestep = timestep
         self.speed = speed
@@ -119,6 +120,7 @@ class WorldSim:
         self.grasp = grasp or GraspConfig()
         self._seed = seed
         self._overview = overview_camera
+        self.camera_offset_m = camera_offset_m
         self.lock = threading.RLock()
         self._thread: threading.Thread | None = None
         self._running = False
@@ -132,6 +134,7 @@ class WorldSim:
         self.template = SceneState.from_dict(scene_dict)
         cameras = [self._overview or self._default_overview()]
         self.build: MjcfBuild = build_mjcf(self.template, timestep=self.timestep, extra_cameras=cameras)
+        add_camera_rig(self.build, self.camera_offset_m)
         self.model = self.build.compile()
         self.data = mujoco.MjData(self.model)
         self.build.apply_initial(self.model, self.data)
@@ -319,6 +322,7 @@ class WorldSim:
         self._renderers = {}
         self.template = scene
         self.build = build_mjcf(scene, timestep=self.timestep, extra_cameras=[self._overview or self._default_overview()])
+        add_camera_rig(self.build, self.camera_offset_m)
         self.model = self.build.compile()
         self.data = mujoco.MjData(self.model)
         self.build.apply_initial(self.model, self.data)

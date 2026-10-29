@@ -47,6 +47,12 @@ Console chat uses `dsh.cmd` on Windows and `dsh` on macOS/Linux, with UTF-8 prom
 
 Runtime data lives in `var/` and is excluded from version control.
 
+## Camera modes
+
+The robot camera card starts in single-camera mode. Its button switches to three synchronized views ordered left, original, right. The original `head_camera`, robot RGB/RGB-D routes and perception input stay unchanged. Side cameras copy the original intrinsics and orientation and sit 0.12 m to either side; `steward up --camera-offset 0.15` changes that per-side distance. They add no geometry, mass or collision. Triple-view rendering runs on a private physics snapshot and its own rendering thread; single mode does not render the side cameras. A failed switch retains the previous mode and reports an error in the card.
+
+The World Control API exposes `GET/POST /wca/cameras` (robot, mode) and `GET /wca/cameras/frame?robot=w:robot-1` (one or three JPEG images with a shared simulation time, pixel K and OpenCV camera-to-world transforms in metres). These poses are labelled simulator truth and are not exposed through the robot sensor port. Head-camera resolution is retained for triple snapshots.
+
 ## Remote 4D reconstruction
 
 The World Harness uses SLARM tools to upload compliant Waymo ZIPs, submit reconstruction, query progress, cancel tasks and download point clouds and videos with size and SHA256 verification. On Windows run `.\scripts\setup-slarm.ps1`, restart Steward, then provide the ZIP path in the World Harness chat. See the [SLARM guide](dsh/packages/dsh-bundle-slarm/README.md) for input requirements, example prompts and storage locations.

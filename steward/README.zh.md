@@ -47,6 +47,12 @@ echo 'DEEPSEEK_API_KEY=sk-...' > .env     # 已被 Git 忽略，运行脚本自�
 
 运行数据写入 `var/`，不纳入版本管理。
 
+## 相机模式
+
+机器人相机卡片默认使用单相机模式，按钮可切换为按左、原相机、右排列的三个同步画面。原有 `head_camera`、机器人 RGB/RGB-D 接口及感知输入保持不变。左右相机复制原相机的内参和朝向，分别横向偏移 0.12 米；通过 `steward up --camera-offset 0.15` 可修改单侧距离。新增相机不增加几何体、质量或碰撞。三视角使用同一份物理状态快照，在独立渲染线程中生成；单相机模式不渲染左右相机。切换失败会保留原模式，并在卡片中显示错误。
+
+World Control API 提供 `GET/POST /wca/cameras`（robot、mode）及 `GET /wca/cameras/frame?robot=w:robot-1`（一幅或三幅 JPEG，包含共同仿真时间、像素内参 K 和以米为单位的 OpenCV 相机到世界变换）。这些位姿标明来自仿真真值，不通过机器人传感器端口暴露。三相机快照保留头部相机的原分辨率。
+
 ## 远程 4D 重建
 
 World Harness 可通过 SLARM 工具上传合规 Waymo ZIP、提交重建、查询进度、取消任务，并下载经过大小和 SHA256 校验的点云与视频。Windows 安装命令是 `.\scripts\setup-slarm.ps1`；安装后重启 Steward，在“世界 · World Harness”对话中给出 ZIP 路径。输入格式、示例提示词及存储位置见 [SLARM 使用说明](dsh/packages/dsh-bundle-slarm/README.zh.md)。

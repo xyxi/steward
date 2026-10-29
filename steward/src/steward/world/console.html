@@ -40,6 +40,12 @@
   canvas.plain { width: 100%; display: block; border-radius: 6px; background: #11151a; }
   .cam img { width: 100%; border-radius: 6px; background: #11151a; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
   .cam img:not([src]) { visibility: hidden; }
+  .camera-views { display: grid; gap: 8px; }
+  .camera-views.triple { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #cameraCard.triple { grid-column: 1 / -1; }
+  .camera-caption { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+  .camera-views [hidden] { display: none; }
+  @media (max-width: 600px) { .camera-views.triple { grid-template-columns: 1fr; } }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   td { padding: 3px 0; border-bottom: 1px solid #20262e; }
   td:last-child { text-align: right; }
@@ -200,9 +206,15 @@
     <div id="planBody" class="task">机器人尚未发布计划</div>
   </section>
   <div class="grid3">
-    <section class="card">
-      <h2 id="robotCamLabel">机器人头部相机</h2>
-      <div class="cam"><img id="camRobot" alt="机器人头部相机"></div>
+    <section class="card" id="cameraCard">
+      <h2><span id="robotCamLabel">机器人头部相机</span><span class="spacer"></span>
+        <button id="cameraMode" aria-pressed="false">切换三相机</button></h2>
+      <div class="camera-views" id="cameraViews">
+        <div class="cam" id="cameraLeft" hidden><div class="camera-caption">左前相机</div><img id="camLeft" alt="左前相机"></div>
+        <div class="cam"><div class="camera-caption" id="cameraCenterLabel" hidden>原相机</div><img id="camRobot" alt="机器人头部相机"></div>
+        <div class="cam" id="cameraRight" hidden><div class="camera-caption">右前相机</div><img id="camRight" alt="右前相机"></div>
+      </div>
+      <div class="err" id="cameraError" role="status"></div>
     </section>
     <section class="card">
       <h2>俯视地图（蓝：真实状态　橙：自我态）</h2>
@@ -802,13 +814,49 @@ renderTarget();
 
 const cameraMeter = rateMeter();
 let cameraShown = null;
+let cameraState = { mode: 'single', revision: -1 }, cameraSwitching = false;
+function applyCameraMode(value) {
+  cameraState = value;
+  const triple = value.mode === 'triple';
+  $('cameraCard').classList.toggle('triple', triple);
+  $('cameraViews').classList.toggle('triple', triple);
+  $('cameraLeft').hidden = $('cameraRight').hidden = $('cameraCenterLabel').hidden = !triple;
+  $('cameraMode').textContent = cameraSwitching ? '正在切换…' : triple ? '切换单相机' : '切换三相机';
+  $('cameraMode').setAttribute('aria-pressed', String(triple));
+  $('cameraMode').disabled = cameraSwitching || value.capture_active;
+}
+$('cameraMode').onclick = async () => {
+  if (!robotId || cameraSwitching) return;
+  cameraSwitching = true; applyCameraMode(cameraState);
+  try {
+    const value = await api('POST', '/wca/cameras', { robot: robotId, mode: cameraState.mode === 'triple' ? 'single' : 'triple' });
+    applyCameraMode(value); $('cameraError').textContent = '';
+  } catch (e) { $('cameraError').textContent = `相机切换失败：${e.message}`; }
+  finally { cameraSwitching = false; applyCameraMode(cameraState); }
+};
 async function refreshRobotCamera() {
-  if (!robotId) return;
-  const res = await fetch(`/wca/render?camera=${encodeURIComponent('robot:' + robotId)}&width=480&height=360&format=jpeg`,
-    { cache: 'no-store' });
-  if (!res.ok) return;
-  cameraShown = await showBlob($('camRobot'), res, cameraShown);
-  $('robotCamLabel').textContent = `${robotId} 头部相机 · ${cameraMeter().toFixed(1)} fps`;
+  if (!robotId || cameraSwitching) return;
+  try {
+    const target = robotId;
+    const value = await api('GET', `/wca/cameras?robot=${encodeURIComponent(target)}`);
+    if (cameraSwitching || target !== robotId) return;
+    applyCameraMode(value);
+    if (value.mode === 'triple') {
+      const batch = await api('GET', `/wca/cameras/frame?robot=${encodeURIComponent(target)}`);
+      if (cameraSwitching || target !== robotId || batch.revision !== cameraState.revision) return;
+      for (const [id, img] of [['head_camera_left', 'camLeft'], ['head_camera', 'camRobot'], ['head_camera_right', 'camRight']]) {
+        $(img).src = batch.views[id].image;
+      }
+      $('robotCamLabel').textContent = `三相机同步画面 · t=${batch.stamp.toFixed(3)} s · ${cameraMeter().toFixed(1)} fps`;
+    } else {
+      const res = await fetch(`/wca/render?camera=${encodeURIComponent('robot:' + target)}&width=480&height=360&format=jpeg`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`图像请求失败 (${res.status})`);
+      if (cameraSwitching || cameraState.mode !== 'single' || target !== robotId) return;
+      cameraShown = await showBlob($('camRobot'), res, cameraShown);
+      $('robotCamLabel').textContent = `${robotId} 头部相机 · ${cameraMeter().toFixed(1)} fps`;
+    }
+    $('cameraError').textContent = '';
+  } catch (e) { $('cameraError').textContent = `相机画面不可用：${e.message}`; }
 }
 
 async function loadScenarios() {

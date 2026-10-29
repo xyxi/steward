@@ -33,6 +33,7 @@ from steward.world.chat import ChatConfig, HarnessChat
 from steward.viewloop import ViewLoop, ViewSettings, frame_response
 from steward.world.sim import EditError, PerceptionConfig, WorldSim
 from steward.world.world_view import WorldViewRenderer
+from steward.world.cameras import CameraPipeline
 
 
 def image_format(query: dict) -> str:
@@ -55,12 +56,13 @@ class StewardHost:
     def __init__(self, root: Path | str, *, scenario: str | None = None, speed: float = 1.0, seed: int = 0,
                  run_dir: Path | None = None, wca_port: int = 0, robot_ports: dict[str, int] | None = None,
                  chat: ChatConfig | None = None, phase: str = DEFAULT_PHASE, bind_wait_s: float = 0.0,
-                 pause_on_perception_fault: bool = False):
+                 pause_on_perception_fault: bool = False, camera_offset_m: float = 0.12):
         phase_modules(phase)
         self.phase = phase
         self.authoring = AuthoringService(root)
         self.chat = HarnessChat(chat, lambda: self.wca.url)
         self.speed = speed
+        self.camera_offset_m = camera_offset_m
         self.seed = seed
         self.run_dir = run_dir
         self.sim: WorldSim | None = None
@@ -69,6 +71,7 @@ class StewardHost:
         self.pause_on_perception_fault = pause_on_perception_fault
         self.perception_alerts: list[dict] = []
         self._paused_by_monitor = False
+        self.cameras = CameraPipeline(self._require_sim)
         self._alert_lock = threading.Lock()
         self.bind_wait_s = bind_wait_s
         self.wca = JsonServer(self._wca_routes(), port=wca_port, name="wca", bind_wait_s=bind_wait_s)
@@ -88,7 +91,8 @@ class StewardHost:
         if self.sim is not None:
             self.sim.stop()
         self.sim = WorldSim(scenario["sceneState"], speed=self.speed, seed=self.seed,
-                            perception=PerceptionConfig(mode=phase_modules(self.phase)["perception"]))
+                            perception=PerceptionConfig(mode=phase_modules(self.phase)["perception"]),
+                            camera_offset_m=self.camera_offset_m)
         self.scenario = scenario
         self.observer.reset()
         for rid in scenario["robots"]:
@@ -170,6 +174,7 @@ class StewardHost:
             server.stop()
         self.wca.stop()
         self.world_view.stop()
+        self.cameras.close()
         if self.sim is not None:
             self.sim.stop()
 
@@ -261,6 +266,9 @@ class StewardHost:
             ("POST", "/wca/clock"): guard(clock),
             ("POST", "/wca/episode"): guard(episode),
             ("GET", "/wca/render"): guard(render),
+            ("GET", "/wca/cameras"): guard(lambda q, b: self.cameras.state(q["robot"])),
+            ("POST", "/wca/cameras"): guard(lambda q, b: self.cameras.set_mode(b["robot"], b["mode"])),
+            ("GET", "/wca/cameras/frame"): guard(lambda q, b: self.cameras.preview(q["robot"])),
             ("GET", "/observer/latest"): guard(lambda q, b: self.observer.latest),
             ("GET", "/observer/report"): guard(lambda q, b: self.observer.report()),
             ("GET", "/assets/generators"): guard(lambda q, b: {"generators": a.generators()}),
