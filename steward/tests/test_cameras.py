@@ -31,8 +31,9 @@ def test_rig_adds_only_cameras_without_changing_original_physics(kitchen_scene):
         sim.stop()
 
 
-def test_triple_snapshot_uses_equal_intrinsics_parallel_poses_and_real_parallax(kitchen_scene):
-    sim = WorldSim(kitchen_scene)
+@pytest.mark.parametrize("yaw", [0, 25, 40])
+def test_triple_snapshot_uses_equal_intrinsics_outward_poses_and_real_parallax(kitchen_scene, yaw):
+    sim = WorldSim(kitchen_scene, camera_yaw_deg=yaw)
     pipeline = CameraPipeline(lambda: sim)
     try:
         assert pipeline.state("w:robot-1")["mode"] == "single"
@@ -50,7 +51,9 @@ def test_triple_snapshot_uses_equal_intrinsics_parallel_poses_and_real_parallax(
             np.testing.assert_allclose(p[:3, :3].T @ p[:3, :3], np.eye(3), atol=1e-6)
             assert np.linalg.det(p[:3, :3]) == pytest.approx(1)
         for index, sign in ((0, -1), (2, 1)):
-            np.testing.assert_allclose(poses[index][:3, :3], poses[1][:3, :3])
+            forward_in_center = poses[1][:3, :3].T @ poses[index][:3, 2]
+            angle = np.deg2rad(yaw)
+            np.testing.assert_allclose(forward_in_center, [sign * np.sin(angle), 0, np.cos(angle)], atol=1e-6)
             np.testing.assert_allclose(poses[index][:3, 3] - poses[1][:3, 3], sign * 0.12 * poses[1][:3, 0], atol=1e-6)
         for v in views:
             assert base64.b64decode(v["image"].split(",")[1]).startswith(b"\xff\xd8")
@@ -74,8 +77,16 @@ def test_camera_render_rebuilds_after_reset_and_live_scene_change(kitchen_scene)
         after = pipeline.preview("w:robot-1")
         assert after["epoch"] > before["epoch"]
         assert len(after["views"]) == 3
+        np.testing.assert_allclose(after["views"]["head_camera_left"]["camera_to_world"],
+                                   before["views"]["head_camera_left"]["camera_to_world"])
     finally:
         pipeline.close(); sim.stop()
+
+
+@pytest.mark.parametrize("yaw", [-1, 61, float("nan"), float("inf")])
+def test_invalid_side_camera_yaw_rejects_configuration(kitchen_scene, yaw):
+    with pytest.raises(ValueError, match="camera yaw"):
+        WorldSim(kitchen_scene, camera_yaw_deg=yaw)
 
 
 def test_failed_mode_switch_preserves_previous_mode_and_closed_worker_rejects(kitchen_scene):

@@ -1,0 +1,8 @@
+[
+  { "type": "llm/retry", "code": "STREAM_CLOSED" },
+  { "type": "llm/retry", "code": "STREAM_CLOSED" },
+  { "type": "llm/retry", "code": "STREAM_CLOSED" },
+  { "type": "llm/retry", "code": "STREAM_CLOSED" },
+  { "type": "llm/retry", "code": "STREAM_CLOSED" },
+  { "type": "turn/end", "reason": "error", "code": "STREAM_CLOSED" }
+]

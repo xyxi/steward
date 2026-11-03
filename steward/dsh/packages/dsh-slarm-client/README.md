@@ -31,21 +31,22 @@ Install through the [bundle](../dsh-bundle-slarm/README.md). Customize its `stew
 |---|---|---|
 | `endpoint` | Required | HTTP(S) API base, retaining `/slarm` where deployed |
 | `inputRoot` | Required | Existing directory containing allowed ZIPs |
-| `stateDir` | Required | Local request records, manifests and downloads |
+| `stateDir` | Required | Endpoint-isolated request identities and recovery records |
+| `inputsDir` | inputs/slarm | Submitted JSON, parameters and ZIP archives; relative to inputRoot |
+| `outputsDir` | outputs/slarm | Results by remote task ID; relative to inputRoot |
 | `requestTimeoutMs` / `uploadTimeoutMs` / `downloadTimeoutMs` | 15000 / 1800000 / 300000 | Per-attempt timeouts |
 | `pollIntervalMs` / `maxWaitSeconds` | 2000 / 20 | Poll spacing and maximum requested wait |
 | `retryCount` / `retryDelayMs` / `maxRetryDelayMs` | 2 / 1000 / 30000 | Additional HTTP attempts, initial backoff and maximum accepted delay |
 | `maxMetadataBytes` | 2097152 | Maximum JSON response size |
 | `maxUploadBytes` / `maxArtifactBytes` | 2147483648 each | Local per-archive and per-artifact size limits |
 
-Relative directories resolve from the launch directory. ZIP paths are resolved beneath `inputRoot`, including symlink resolution. The server upload limit also applies. A wait may exceed its requested duration while the current HTTP request and bounded retries settle.
+`inputRoot` and `stateDir` resolve from the launch directory; `inputsDir` and `outputsDir` resolve beneath `inputRoot`. ZIP paths are resolved beneath `inputRoot`, including symlink resolution. The server upload limit also applies. A wait may exceed its requested duration while the current HTTP request and bounded retries settle.
 
 Reuse the same `request_key` and options after an uncertain submission. The local store reserves an idempotency key before POST and refuses to reuse that identity for different contents. Preserve the store across restarts; a new key represents new work.
 
-Each endpoint has a separate directory named by its SHA256 prefix. `results/<reconstruction_id>/result.json` holds the full manifest; `<artifact_id>/<filename>` holds each verified download. Receipts record file paths, sizes and hashes. Downloading again reuses verified complete files; partial downloads restart from the beginning.
-
 HTTP failures stop dependent work. Permanent errors are not retried; eligible transient errors use bounded backoff and respect `Retry-After`. A delay above the configured cap is reported instead of retrying early. Remote expiry does not delete downloaded local files.
 
+Submission inputs are retained under `inputsDir`: uploads keep `archive.zip` and their request metadata; reconstructions keep the dataset ID, frame range and generation parameters in a separate `request.json`. Each `outputsDir/<task_id>/` contains the full server `result.json` and a local `manifest.json` listing the input archive and verified downloaded files. SLARM artifacts use `<artifact_id>/<filename>` to preserve same-named files from different windows. Repeated selections accumulate in the manifest; a later result query rechecks existing files. Missing local input history is represented by null, not reconstructed from server predictions. Downloads reuse verified complete files. Use the tool-returned `local_manifest_path` for downstream processing. Configure separate output directories for different servers whose task IDs can collide.
 
 -----
 
@@ -66,7 +67,6 @@ HTTP failures stop dependent work. Permanent errors are not retried; eligible tr
 
 [Steward](../../../README.md) · [Service types](../dsh-slarm/README.md) · [HTTP provider](../dsh-slarm-client/README.md) · [Tools](../dsh-tool-slarm/README.md) · [Bundle](../dsh-bundle-slarm/README.md)
 
-
 -----
 
 <a id="model-experience"></a>
@@ -74,14 +74,12 @@ HTTP failures stop dependent work. Permanent errors are not retried; eligible tr
 
 Indirect: the [tools](../dsh-tool-slarm/README.md) expose bounded JSON results. The complete result manifest stays on disk.
 
-
 -----
 
 <a id="known-limitations-and-deferred-work"></a>
 ## Known Limitations and Deferred Work
 
 Cancellation requires a submission created or recovered in this store. Artifact transfers do not implement HTTP Range resume or automatic download retries. The client does not unpack ZIPs or interpret NPZ arrays.
-
 
 -----
 

@@ -19,6 +19,7 @@ import math
 import queue
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 
 import mujoco
@@ -109,7 +110,7 @@ class _RobotState:
 class WorldSim:
     def __init__(self, scene: dict, *, timestep: float = 0.002, speed: float = 1.0, seed: int = 0,
                  perception: PerceptionConfig | None = None, grasp: GraspConfig | None = None,
-                 overview_camera: dict | None = None, camera_offset_m: float = 0.12):
+                 overview_camera: dict | None = None, camera_offset_m: float = 0.12, camera_yaw_deg: float = 25):
         self._initial_scene = copy.deepcopy(scene)
         self.timestep = timestep
         self.speed = speed
@@ -121,6 +122,7 @@ class WorldSim:
         self._seed = seed
         self._overview = overview_camera
         self.camera_offset_m = camera_offset_m
+        self.camera_yaw_deg = camera_yaw_deg
         self.lock = threading.RLock()
         self._thread: threading.Thread | None = None
         self._running = False
@@ -135,7 +137,7 @@ class WorldSim:
         self.template = SceneState.from_dict(scene_dict)
         cameras = [self._overview or self._default_overview()]
         self.build: MjcfBuild = build_mjcf(self.template, timestep=self.timestep, extra_cameras=cameras)
-        add_camera_rig(self.build, self.camera_offset_m)
+        add_camera_rig(self.build, self.camera_offset_m, self.camera_yaw_deg)
         self.model = self.build.compile()
         self.data = mujoco.MjData(self.model)
         self.build.apply_initial(self.model, self.data)
@@ -144,6 +146,7 @@ class WorldSim:
         for renderer in getattr(self, "_renderers", {}).values():
             close_renderer(renderer)
         self._epoch = getattr(self, "_epoch", 0) + 1
+        self.odometry_frame_id = uuid.uuid4().hex
         self._renderers: dict[tuple[int, int], mujoco.Renderer] = {}
         self._index_bodies()
         self.step_count = 0
@@ -323,7 +326,7 @@ class WorldSim:
         self._renderers = {}
         self.template = scene
         self.build = build_mjcf(scene, timestep=self.timestep, extra_cameras=[self._overview or self._default_overview()])
-        add_camera_rig(self.build, self.camera_offset_m)
+        add_camera_rig(self.build, self.camera_offset_m, self.camera_yaw_deg)
         self.model = self.build.compile()
         self.data = mujoco.MjData(self.model)
         self.build.apply_initial(self.model, self.data)
@@ -662,14 +665,7 @@ class WorldSim:
         with self.lock:
             rs = self._robot(robot_id)
             names = self.build.names[robot_id]
-            x, y, yaw = (self._joint_q(j) for j in names.root_joints)
-            p = self.perception
-            odom = {
-                "x": x + self.rng.normal(0, p.odom_pos_sigma),
-                "y": y + self.rng.normal(0, p.odom_pos_sigma),
-                "yaw": yaw + self.rng.normal(0, p.odom_yaw_sigma),
-                "sigma": {"pos": p.odom_pos_sigma, "yaw": p.odom_yaw_sigma},
-            }
+            odom = self.odometry(robot_id)
             joints = {jid: self._joint_q(jname) for jid, jname in names.joints.items()}
             cam_pose, sensor = self.camera_pose(robot_id)
             frame = {
@@ -686,6 +682,17 @@ class WorldSim:
             else:
                 frame["detections"] = self._detections(robot_id, cam_pose, sensor)
             return frame
+
+    def odometry(self, robot_id: str) -> dict:
+        """Sample robot odometry, including its measurement uncertainty, under the physics lock."""
+        with self.lock:
+            names = self.build.names[robot_id]
+            x, y, yaw = (self._joint_q(j) for j in names.root_joints)
+            p = self.perception
+            return {"x": x + self.rng.normal(0, p.odom_pos_sigma),
+                    "y": y + self.rng.normal(0, p.odom_pos_sigma),
+                    "yaw": yaw + self.rng.normal(0, p.odom_yaw_sigma),
+                    "sigma": {"pos": p.odom_pos_sigma, "yaw": p.odom_yaw_sigma}}
 
     def perception_parts(self, ent) -> list[tuple[str, list[str] | None, str]]:
         """What a detector reports for one entity: ``(part id, links, category)``. Building walls and

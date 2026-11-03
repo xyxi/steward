@@ -12,6 +12,12 @@ function fakeEgo(receipts = {}) {
     summary: async () => ({ objects: [] }),
     query: async (q) => { calls.push(['query', q]); return [] },
     observe: async () => ({ visible: [] }),
+    captureCameras: async () => ({ stamp: 12, manifest_path: 'capture.json', views: {} }),
+    gripperPose: async () => ({ stamp: 12, gripper_to_camera: {} }),
+    cameraCalibration: async () => ({ reference_camera: 'head_camera', views: {} }),
+    startRgbRecording: async (fps, max, key) => { calls.push(['record_start', fps, max, key]); return { recording_id: 'rgb_' + 'a'.repeat(32), status: 'recording' } },
+    rgbRecordingStatus: async id => { calls.push(['record_status', id]); return { status: 'recording' } },
+    stopRgbRecording: async (id, cancel) => { calls.push(['record_stop', id, cancel]); return { status: cancel ? 'cancelled' : 'succeeded' } },
     explore: async () => job('running'),
     predict: async (skill, params) => {
       calls.push(['predict', skill, params])
@@ -40,7 +46,7 @@ function tool(tools, name) {
 
 test('ego tools expose the robot vocabulary without World State concepts', () => {
   const names = egoTools(fakeEgo()).map(t => t.name)
-  assert.deepEqual(names, ['ego_state', 'ego_query', 'ego_observe', 'ego_explore', 'ego_predict', 'skill_run',
+  assert.deepEqual(names, ['ego_state', 'ego_query', 'ego_observe', 'ego_capture_cameras', 'ego_rgb_recording_start', 'ego_rgb_recording_status', 'ego_rgb_recording_stop', 'ego_camera_calibration', 'ego_gripper_pose', 'ego_explore', 'ego_predict', 'skill_run',
     'skill_status', 'body_stop', 'report_problem'])
   for (const t of egoTools(fakeEgo())) assert.doesNotMatch(t.description, /ground truth|world state/i)
 })
@@ -52,6 +58,14 @@ test('ego_predict forwards only the given parameters and hides the raw path', as
   assert.equal(result.receipt, 'rcpt-1')
   assert.equal(result.plan.path, undefined)
   assert.equal(result.plan.reach, 0.3)
+})
+
+test('RGB recording tools remain independent of robot motion and preserve explicit cancellation', async () => {
+  const ego = fakeEgo(), tools = egoTools(ego)
+  const started = await tool(tools, 'ego_rgb_recording_start').execute({ fps: 2, max_frames: 64, request_key: 'record-tools-001' }, exec('ego_rgb_recording_start'))
+  await tool(tools, 'ego_rgb_recording_status').execute({ recording_id: started.recording_id }, exec('ego_rgb_recording_status'))
+  await tool(tools, 'ego_rgb_recording_stop').execute({ recording_id: started.recording_id, cancel: true }, exec('ego_rgb_recording_stop'))
+  assert.deepEqual(ego.calls, [['record_start', 2, 64, 'record-tools-001'], ['record_status', started.recording_id], ['record_stop', started.recording_id, true]])
 })
 
 test('skill_run waits for completion by default', async () => {

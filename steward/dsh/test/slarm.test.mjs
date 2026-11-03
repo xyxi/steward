@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fixture } from './slarm-fixture.mjs'
 
@@ -17,6 +17,7 @@ test('SLARM tools upload, resume after client restart, and preserve /slarm', asy
   const f = await fixture(t)
   const uploaded = await f.call('slarm_upload', f.upload)
   assert.equal(uploaded.dataset_id, 'ds_one')
+  assert.deepEqual(await readFile(uploaded.local_input.archive_path), await readFile(join(f.root, 'scene.zip')))
   const second = await f.create()
   await second.call('slarm_upload', f.upload)
   assert.equal(f.state.uploadCount, 1)
@@ -24,6 +25,11 @@ test('SLARM tools upload, resume after client restart, and preserve /slarm', asy
   const task = await f.call('slarm_reconstruct', f.reconstruct)
   await second.call('slarm_reconstruct', f.reconstruct)
   assert.equal(task.reconstruction_id, 'rec_one')
+  assert.deepEqual(JSON.parse(await readFile(task.local_input.request_path, 'utf8')).frame_range, { start: 0, end: 21 })
+  assert.equal(task.local_input.dataset.archive_path, uploaded.local_input.archive_path)
+  const archive = await readFile(uploaded.local_input.archive_path)
+  await writeFile(join(f.root, 'scene.zip'), 'changed original')
+  assert.deepEqual(await readFile(uploaded.local_input.archive_path), archive)
   assert.equal(f.state.postCount, 1, 'the lost response reuses its idempotency key')
   assert.ok(f.calls.every(call => call[1].startsWith('/slarm/')))
   await assert.rejects(second.call('slarm_reconstruct', { ...f.reconstruct, end: 22 }), /LOCAL_IDEMPOTENCY_CONFLICT/)
@@ -63,10 +69,14 @@ test('downloads verify hashes, reuse good files and never publish corrupt files'
   const args = { reconstruction_id: 'rec_one', artifact_ids: ['art_1', 'art_2', 'art_3'] }
   f.state.brokenDownload = true
   await assert.rejects(f.call('slarm_download', args), /INTEGRITY_FAILURE/)
-  const names = await readdir(join(f.root, 'state'), { recursive: true })
+  const names = await readdir(join(f.root, 'outputs', 'slarm'), { recursive: true })
   assert.ok(!names.some(name => name.endsWith('.part') || name.endsWith('points.npz')))
   f.state.brokenDownload = false
   const downloaded = await f.call('slarm_download', args)
+  assert.equal(downloaded.local_manifest_path, join(f.root, 'outputs', 'slarm', 'rec_one', 'manifest.json'))
+  assert.equal(JSON.parse(await readFile(downloaded.local_manifest_path, 'utf8')).files.length, 3)
+  await f.call('slarm_download', { ...args, artifact_ids: ['art_1'] })
+  assert.equal(JSON.parse(await readFile(downloaded.local_manifest_path, 'utf8')).files.length, 3)
   assert.equal(downloaded.files.length, 3)
   assert.notEqual(downloaded.files[0].path, downloaded.files[1].path, 'same filenames in different artifacts do not collide')
   const reused = await f.call('slarm_download', args)
@@ -143,6 +153,6 @@ test('aborted artifact streams close files and remove incomplete downloads', asy
   const pending = f.call('slarm_download', { reconstruction_id: 'rec_one', artifact_ids: ['art_1'] }, controller.signal)
   const rejection = assert.rejects(pending)
   await started; controller.abort(); await rejection
-  const names = await readdir(join(f.root, 'state'), { recursive: true })
+  const names = await readdir(join(f.root, 'outputs', 'slarm'), { recursive: true })
   assert.ok(!names.some(name => name.endsWith('.part') || name.endsWith('points.npz')))
 })

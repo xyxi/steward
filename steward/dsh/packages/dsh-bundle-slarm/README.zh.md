@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 摘要
 
-为 World Harness 添加远程 4D 重建能力。该配置层提供上传、进度查询、取消和经校验的产物下载。安装到世界 profile 后，向智能体提供本地 Waymo ZIP；重建模型在配置的服务器上运行。
+通过 `slarm` skill 为 World 和机器人 Ego Harness 添加远程场景4D重建能力。该配置层提供上传、进度查询、取消和经校验的产物下载。安装到调用方 profile 后，向智能体提供合规三相机时间序列 ZIP；重建模型在配置的服务器上运行。
 
 ## 目录
 
@@ -25,7 +25,7 @@ kind: "package-bundle"
 <a id="use-this-package"></a>
 ## 使用方式
 
-在 Steward 目录中准备好 DSH 依赖后，执行以下 Windows 安装命令。脚本编译本地插件，将 bundle 加入 `var/dsh/world` 下的 `world` 和 `world-task`，保留已有 profile 设置。
+在 Steward 目录中准备好 DSH 依赖后，执行以下 Windows 安装命令。脚本编译本地插件，将工具和 skill 加入 `var/dsh/world` 下的 `world`、`world-task` 及 `var/dsh/robot-1` 下的 `ego`，保留已有 profile 设置。
 
 ```powershell
 
@@ -33,13 +33,15 @@ kind: "package-bundle"
 
 ```
 
-macOS/Linux 的[完整 profile 安装脚本](../../../scripts/setup-dsh-profiles.sh)也会安装该层。更新世界对话指令后，用 `run_windows.bat` 重启 Steward，打开控制台并选择**世界 · World Harness**。
+macOS/Linux 的[完整 profile 安装脚本](../../../scripts/setup-dsh-profiles.sh)也会安装该层。更新世界对话指令后，用 `run_windows.bat` 重启 Steward，打开控制台并选择 World 或机器人 Harness。
 
 将合规 ZIP 放到 `var/input/scene.zip`，然后发送：
 
 > 请使用 var/input/scene.zip 重建第 0 到 15 帧，输出 pointcloud、rgb_video 和 diagnostic_video。跟踪校验和进度直到结束，下载全部点云和两种视频，报告真实输入图片数、输出视角数和已校验的本地路径。
 
 合规压缩包包含预处理后的 Waymo 三相机图像、标定、已知位姿及时间戳。重建接受 16–256 个时间帧；`[0,16)` 表示第 0 到 15 帧。仅装入普通视频的 ZIP 不符合该输入格式。
+
+机器人必须使用自身观测序列与已知或估计位姿，或工作空间内提供的合规 ZIP。单时刻 `ego_capture_cameras` 工具不提供 SLARM 所需的16–256个时间帧。机器人不得调用特权 World 采集或读取仿真文件。
 
 对于运行中的仿真，先用 `world_cameras` 选择 `triple`，用 `world_capture` 开始采集，再用 `world_capture_status` 等待 `succeeded`。将返回的 `archive_path` 交给 `slarm_upload`，显式设置 `format: "slarm_scene_v1"`，之后沿用验证、重建和下载步骤。`world_capture_cancel` 请求取消本地采集；只有 `cancelled` 才确认清理完成。停止对话只停止等待，已接受的采集继续运行。启动响应丢失时，先用 `world_cameras` 查询最近的采集，再决定是否重新开始。
 
@@ -51,7 +53,7 @@ ZIP 包含 `scene.json`，每个时刻有三张 PNG，对应 `camera_0_left`、`
 
 恢复时提供已返回的 `dataset_id` 或 `reconstruction_id`。停止远程任务时，明确提出“取消重建任务 rec_…，并确认最终状态”。停止对话只会停止本地等待。
 
-通过[客户端配置](../dsh-slarm-client/README.zh.md#use-this-package)修改服务器和目录。默认服务器为 `http://115.120.57.9/slarm`，输入根目录为 `.`，状态目录为 `var/slarm`，均相对于 DSH 启动目录解析。应从 Steward 目录启动，或配置绝对目录。
+通过[客户端配置](../dsh-slarm-client/README.zh.md#use-this-package)修改服务器和目录。bundle 要求设置调用方的 `DSH_HOME`，Steward 与安装脚本会设置该值。输入、输出与恢复记录分别保存在 `DSH_HOME/workspace/inputs/slarm`、`DSH_HOME/workspace/outputs/slarm` 和 `DSH_HOME/workspace/var/slarm`，不受启动目录影响。默认端点为 `http://115.120.57.9/slarm`。输入路径仍相对于启动目录校验：World 可提交采集 ZIP；机器人输入路径必须位于机器人工作空间内。
 
 
 -----

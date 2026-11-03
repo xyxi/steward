@@ -37,7 +37,12 @@
     "dataset_id": "ds_one",
     "request_key": "camera-snapshot-upload",
     "archive_sha256": "102855d599837ca8258d565736139b711e301989df39f506468076decfea1dac",
-    "request_record": "{{cwd}}/state/{{service}}/requests/upload-0c1ce7de62f2c88fb52cf46f7145ea608ac029bee20b65b5f84c1729a37e2a0a.json"
+    "request_record": "{{cwd}}/home/workspace/var/slarm/{{service}}/requests/upload-0c1ce7de62f2c88fb52cf46f7145ea608ac029bee20b65b5f84c1729a37e2a0a.json",
+    "local_input": {
+      "archive_path": "{{cwd}}/home/workspace/inputs/slarm/upload-3938191580801b5fc596c6d4c248718fd4b2fcd813d1e6f1c4a7e3881d79ff48/archive.zip",
+      "request_path": "{{cwd}}/home/workspace/inputs/slarm/upload-3938191580801b5fc596c6d4c248718fd4b2fcd813d1e6f1c4a7e3881d79ff48/request.json",
+      "archive_sha256": "102855d599837ca8258d565736139b711e301989df39f506468076decfea1dac"
+    }
   },
   {
     "id": "ds_one",
@@ -62,7 +67,15 @@
     "reconstruction_id": "rec_one",
     "next_action": "slarm_result",
     "request_key": "camera-snapshot-reconstruct",
-    "request_record": "{{cwd}}/state/{{service}}/requests/reconstruct-d8ad519135ee3103b63a750ad18fc0d023e843becffa948a80e5bbeef0cb1ff1.json"
+    "request_record": "{{cwd}}/home/workspace/var/slarm/{{service}}/requests/reconstruct-d8ad519135ee3103b63a750ad18fc0d023e843becffa948a80e5bbeef0cb1ff1.json",
+    "local_input": {
+      "request_path": "{{cwd}}/home/workspace/inputs/slarm/reconstruct-44a693421a0239a9e94e127cde32e82e836e987eb1c3ab4510a77a9571c29529/request.json",
+      "dataset": {
+        "archive_path": "{{cwd}}/home/workspace/inputs/slarm/upload-3938191580801b5fc596c6d4c248718fd4b2fcd813d1e6f1c4a7e3881d79ff48/archive.zip",
+        "request_path": "{{cwd}}/home/workspace/inputs/slarm/upload-3938191580801b5fc596c6d4c248718fd4b2fcd813d1e6f1c4a7e3881d79ff48/request.json",
+        "archive_sha256": "102855d599837ca8258d565736139b711e301989df39f506468076decfea1dac"
+      }
+    }
   },
   {
     "id": "rec_one",
@@ -223,7 +236,8 @@
         "download_url": "{{endpoint}}/v1/reconstructions/rec_one/artifacts/art_3"
       }
     ],
-    "local_result_path": "{{cwd}}/state/{{service}}/results/rec_one/result.json",
+    "local_result_path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/result.json",
+    "local_manifest_path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/manifest.json",
     "interpretation": "Geometry, semantics and motion are predictions. Point counts are not object counts. quality_status=ok is not accuracy validation. Windows are not globally fused."
   },
   {
@@ -232,7 +246,7 @@
       {
         "artifact_id": "art_1",
         "kind": "pointcloud",
-        "path": "{{cwd}}/state/{{service}}/results/rec_one/art_1/points.npz",
+        "path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/art_1/points.npz",
         "bytes": 27,
         "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
         "verified": true,
@@ -241,7 +255,7 @@
       {
         "artifact_id": "art_2",
         "kind": "pointcloud",
-        "path": "{{cwd}}/state/{{service}}/results/rec_one/art_2/points.npz",
+        "path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/art_2/points.npz",
         "bytes": 27,
         "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
         "verified": true,
@@ -250,12 +264,13 @@
       {
         "artifact_id": "art_3",
         "kind": "rgb_video",
-        "path": "{{cwd}}/state/{{service}}/results/rec_one/art_3/video.mp4",
+        "path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/art_3/video.mp4",
         "bytes": 27,
         "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
         "verified": true,
         "reused": false
       }
-    ]
+    ],
+    "local_manifest_path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/manifest.json"
   }
 ]

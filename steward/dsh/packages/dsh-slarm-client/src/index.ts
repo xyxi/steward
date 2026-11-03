@@ -11,13 +11,15 @@ import { SlarmService, SlarmError, datasetId, reconstructionId, outputKinds,
   type DatasetId, type ReconstructionId, type ArtifactId, type UploadRequest, type ReconstructionRequest,
   type Json, type JsonObject } from '@steward/dsh-slarm'
 import * as protocol from './protocol.ts'
-import { digest, fileDigest, hasCode, load, reserve, save } from './storage.ts'
+import { digest, fileDigest, hasCode, load, reserve, save, snapshotFile } from './storage.ts'
 
-/** Deployment settings; relative directories resolve against the DSH invocation directory. */
+/** Deployment settings; input/output directories resolve beneath inputRoot, other directories from the invocation directory. */
 export interface Config {
   endpoint: string
   inputRoot: string
   stateDir: string
+  inputsDir: string
+  outputsDir: string
   requestTimeoutMs: number
   uploadTimeoutMs: number
   downloadTimeoutMs: number
@@ -40,6 +42,8 @@ const jobFields = ['id', 'dataset_id', 'status', 'queue_position', 'progress', '
 export class SlarmClient extends SlarmService {
   static Config = schema.object({
     endpoint: schema.string().required(), inputRoot: schema.string().required(), stateDir: schema.string().required(),
+    inputsDir: schema.string().default('inputs/slarm'),
+    outputsDir: schema.string().default('outputs/slarm'),
     requestTimeoutMs: schema.number().min(100).default(15_000),
     uploadTimeoutMs: schema.number().min(100).default(1_800_000),
     downloadTimeoutMs: schema.number().min(100).default(300_000),
@@ -55,6 +59,8 @@ export class SlarmClient extends SlarmService {
 
   private readonly base: string
   private readonly inputRoot: string
+  private readonly inputs: string
+  private readonly outputs: string
   private readonly root: string
   private readonly lifetime = new AbortController()
   private readonly pending = new Set<Promise<unknown>>()
@@ -67,6 +73,8 @@ export class SlarmClient extends SlarmService {
     }
     this.base = url.href.replace(/\/+$/, '')
     this.inputRoot = realpathSync.native(resolve(config.inputRoot))
+    this.inputs = resolve(this.inputRoot, config.inputsDir)
+    this.outputs = resolve(this.inputRoot, config.outputsDir)
     this.root = resolve(config.stateDir, digest(this.base).slice(0, 16))
     ctx.effect(() => async () => {
       this.lifetime.abort()
@@ -183,14 +191,18 @@ export class SlarmClient extends SlarmService {
       const hash = await fileDigest(path, signal)
       const payload = { archive_sha256: hash, filename: basename(path), format: request.format, bytes: info.size }
       const record = await reserve(this.root, this.base, 'upload', request.requestKey, payload)
+      const directory = join(this.inputs, `upload-${digest(JSON.stringify(payload))}`)
+      const archive = join(directory, 'archive.zip'), requestPath = join(directory, 'request.json')
+      await snapshotFile(path, archive, hash, signal)
+      await save(requestPath, payload)
+      const input = { archive_path: archive, request_path: requestPath, archive_sha256: hash }
       let accepted: JsonObject | undefined
       try { accepted = await load(record.path + '.response.json') } catch (error) { if (!hasCode(error, 'ENOENT')) throw error }
       if (!accepted) {
         accepted = await this.json(request.format === 'slarm_scene_v1' ? '/v1/datasets' : '/v1/waymo/datasets', async () => {
-          const now = await stat(path)
-          if (now.size !== info.size || now.mtimeMs !== info.mtimeMs) throw new SlarmError('Archive changed during upload; use a stable ZIP.', 'INPUT_CHANGED')
+          if (await fileDigest(archive, signal) !== hash) throw new SlarmError('Saved archive changed before upload.', 'INPUT_CHANGED')
           const form = new FormData()
-          form.set('archive', await openAsBlob(path, { type: 'application/zip' }), basename(path))
+          form.set('archive', await openAsBlob(archive, { type: 'application/zip' }), basename(path))
           form.set('archive_sha256', hash)
           form.set('format', request.format)
           return { method: 'POST', headers: { 'Idempotency-Key': record.key }, body: form }
@@ -199,8 +211,9 @@ export class SlarmClient extends SlarmService {
         await save(record.path + '.response.json', accepted)
       }
       const id = datasetId(protocol.parse(z.object({ id: z.string() }), accepted).id)
+      await save(join(this.root, 'datasets', `${id}.json`), input)
       return { ...await this.dataset(id, 0, signal), dataset_id: id, request_key: request.requestKey,
-        archive_sha256: hash, request_record: record.path }
+        archive_sha256: hash, request_record: record.path, local_input: input }
     })
   }
 
@@ -232,6 +245,12 @@ export class SlarmClient extends SlarmService {
         outputs: [...request.outputs].sort(), evaluate: request.evaluate }
       if (request.gaussianStride !== undefined) payload.gaussian_stride = request.gaussianStride
       const record = await reserve(this.root, this.base, 'reconstruct', request.requestKey, payload)
+      const requestPath = join(this.inputs, `reconstruct-${digest(JSON.stringify(payload))}`, 'request.json')
+      await save(requestPath, payload)
+      let datasetInput: Json = null
+      try { datasetInput = await load(join(this.root, 'datasets', `${request.datasetId}.json`)) }
+      catch (error) { if (!hasCode(error, 'ENOENT')) throw error }
+      const input = { request_path: requestPath, dataset: datasetInput }
       let accepted: JsonObject | undefined
       try { accepted = await load(record.path + '.response.json') } catch (error) { if (!hasCode(error, 'ENOENT')) throw error }
       if (!accepted) {
@@ -245,8 +264,8 @@ export class SlarmClient extends SlarmService {
       if (job.dataset_id !== request.datasetId) throw new SlarmError('Submission response refers to a different dataset.', 'INVALID_METADATA')
       await save(record.path + '.response.json', accepted)
       const id = reconstructionId(job.id)
-      await save(join(this.root, 'owned', `${id}.json`), { endpoint: this.base, request_record: record.path })
-      return { ...await this.status(id, 0, signal), request_key: request.requestKey, request_record: record.path }
+      await save(join(this.root, 'owned', `${id}.json`), { endpoint: this.base, request_record: record.path, input })
+      return { ...await this.status(id, 0, signal), request_key: request.requestKey, request_record: record.path, local_input: input }
     })
   }
 
@@ -260,6 +279,30 @@ export class SlarmClient extends SlarmService {
       return { ...protocol.pick(state, jobFields), reconstruction_id: id,
         next_action: state.status === 'succeeded' ? 'slarm_result' : terminal.has(String(state.status)) ? 'stop' : 'slarm_status' }
     })
+  }
+
+  private async localManifest(id: ReconstructionId, value: JsonObject, signal: AbortSignal): Promise<void> {
+    const directory = join(this.outputs, id), manifestPath = join(directory, 'manifest.json')
+    let previous: JsonObject | undefined
+    try { previous = await load(manifestPath) } catch (error) { if (!hasCode(error, 'ENOENT')) throw error }
+    if (previous && previous.endpoint !== this.base) {
+      throw new SlarmError('Output directory belongs to a different endpoint; configure a separate outputsDir.', 'LOCAL_OUTPUT_CONFLICT')
+    }
+    const data = protocol.parse(protocol.result, value), files: JsonObject[] = []
+    for (const item of data.artifacts) {
+      const path = join(directory, item.artifact_id, item.filename)
+      try {
+        if ((await stat(path)).size === item.bytes && await fileDigest(path, signal) === item.sha256) {
+          files.push({ ...item, path, verified: true })
+        }
+      } catch (error) { if (!hasCode(error, 'ENOENT')) throw error }
+    }
+    let input: Json = null
+    try { input = (await load(join(this.root, 'owned', `${id}.json`))).input ?? null }
+    catch (error) { if (!hasCode(error, 'ENOENT')) throw error }
+    await save(join(directory, 'result.json'), value)
+    await save(manifestPath, { version: 1, model: 'slarm', endpoint: this.base, reconstruction_id: id,
+      input, local_result_path: join(directory, 'result.json'), files })
   }
 
   private async manifest(id: ReconstructionId, signal: AbortSignal): Promise<JsonObject> {
@@ -277,7 +320,7 @@ export class SlarmClient extends SlarmService {
         throw new SlarmError('Artifact URL does not belong to this reconstruction.', 'INVALID_METADATA')
       }
     }
-    await save(join(this.root, 'results', id, 'result.json'), value)
+    await this.localManifest(id, value, signal)
     return value
   }
 
@@ -294,7 +337,8 @@ export class SlarmClient extends SlarmService {
         distinct_input_images: new Set(contexts.flat()).size * data.camera_ids.length,
         output_images: data.frame_indices.length * data.camera_ids.length,
         artifacts: data.artifacts.map(a => ({ ...a, download_url: this.base + a.download_path })),
-        local_result_path: join(this.root, 'results', id, 'result.json'),
+        local_result_path: join(this.outputs, id, 'result.json'),
+        local_manifest_path: join(this.outputs, id, 'manifest.json'),
         interpretation: 'Geometry, semantics and motion are predictions. Point counts are not object counts. quality_status=ok is not accuracy validation. Windows are not globally fused.' }
     })
   }
@@ -302,7 +346,8 @@ export class SlarmClient extends SlarmService {
   download(id: ReconstructionId, artifactIds: ArtifactId[], signal: AbortSignal): Promise<JsonObject> {
     return this.run(signal, async signal => {
       if (!artifactIds.length || new Set(artifactIds).size !== artifactIds.length) throw new SlarmError('Choose one or more unique artifact ids.', 'INVALID_ARGUMENT')
-      const data = protocol.parse(protocol.result, await this.manifest(id, signal))
+      const value = await this.manifest(id, signal)
+      const data = protocol.parse(protocol.result, value)
       const selected = artifactIds.map(id => {
         const item = data.artifacts.find(a => a.artifact_id === id)
         if (!item) throw new SlarmError(`Artifact ${id} is not in this result.`, 'UNKNOWN_ARTIFACT')
@@ -311,7 +356,7 @@ export class SlarmClient extends SlarmService {
       })
       const files: Json[] = []
       for (const item of selected) {
-        const directory = join(this.root, 'results', id, item.artifact_id)
+        const directory = join(this.outputs, id, item.artifact_id)
         await mkdir(directory, { recursive: true })
         const target = join(directory, item.filename)
         let reused = false
@@ -358,8 +403,8 @@ export class SlarmClient extends SlarmService {
           sha256: item.sha256, verified: true, reused })
       }
       const receipt = { reconstruction_id: id, files }
-      await save(join(this.root, 'results', id, `download-${randomUUID()}.json`), receipt)
-      return receipt
+      await this.localManifest(id, value, signal)
+      return { ...receipt, local_manifest_path: join(this.outputs, id, 'manifest.json') }
     })
   }
 

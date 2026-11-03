@@ -1,8 +1,9 @@
-"""Additive robot camera rig and WCA-only synchronized RGB rendering.
+"""Robot camera rig with synchronized RGB and separate sensor/WCA calibration.
 
 The original head camera and robot sensor routes retain their identities. Side cameras add no
 geometry or mass. A single worker owns the private model and all its OpenGL resources; every
-batch uses one physics snapshot. Calibration is simulator truth, never an Ego sensor reading.
+batch uses one physics snapshot. Only WCA responses expose absolute simulator camera poses;
+robot sensor responses contain fixed calibration relative to the original head camera.
 """
 
 from __future__ import annotations
@@ -18,16 +19,53 @@ import mujoco
 import numpy as np
 
 from steward.glrender import close_renderer, encode_image
-from steward.math3d import matrix_from_quat
+from steward.math3d import matrix_from_quat, quat_from_axis_angle, quat_mul
 from steward.net import HttpError
 
 CAMERA_IDS = ("head_camera_left", "head_camera", "head_camera_right")
+def _intrinsics(sensor: dict) -> dict:
+    width, height = sensor["width"], sensor["height"]
+    focal = height / (2 * math.tan(math.radians(sensor["fovy"]) / 2))
+    return {"width": width, "height": height,
+            "K": [[focal, 0, (width - 1) / 2], [0, focal, (height - 1) / 2], [0, 0, 1]]}
 
 
-def add_camera_rig(build, offset_m: float) -> None:
-    """Add cameras offset left/right from each original head camera in generated MJCF only."""
+def _sensor_kinematics(sim, robot: str) -> dict:
+    """Sample encoders and fixed rig calibration while the caller holds the physics lock."""
+    names = sim.build.names[robot]
+    transforms, bodies = {}, set()
+    for camera in CAMERA_IDS:
+        cid = mujoco.mj_name2id(sim.model, mujoco.mjtObj.mjOBJ_CAMERA, names.cameras[camera])
+        bodies.add(int(sim.model.cam_bodyid[cid]))
+        transform = np.eye(4)
+        transform[:3, :3] = matrix_from_quat(sim.model.cam_quat[cid]) @ np.diag([1, -1, -1])
+        transform[:3, 3] = sim.model.cam_pos[cid]
+        transforms[camera] = transform
+    if len(bodies) != 1:
+        raise ValueError("The three-camera rig must share a rigid mount")
+    reference_inverse = np.linalg.inv(transforms["head_camera"])
+    return {"stamp": sim.time, "reference_camera": "head_camera", "calibration_source": "rig_calibration",
+            "camera_axes": "opencv_x_right_y_down_z_forward",
+            "joint_encoders": {key: sim._joint_q(name) for key, name in names.joints.items()},
+            "views": {key: {"camera_to_reference": np.round(reference_inverse @ value, 12).tolist()}
+                      for key, value in transforms.items()}}
+
+
+def _calibration(sim, robot: str) -> dict:
+    """Expose fixed relative mounts and pixel calibration without simulator absolute poses."""
+    packet = _sensor_kinematics(sim, robot)
+    _, sensor = sim.camera_pose(robot)
+    intrinsic = _intrinsics(sensor["intrinsics"])
+    return {key: packet[key] for key in ("reference_camera", "calibration_source", "camera_axes")} | {
+        "views": {key: intrinsic | view for key, view in packet["views"].items()}}
+
+
+def add_camera_rig(build, offset_m: float, yaw_deg: float) -> None:
+    """Attach side RGB cameras to the original camera's rigid mount."""
     if not math.isfinite(offset_m) or not 0 < offset_m <= 0.5:
         raise ValueError("camera offset must be in (0, 0.5] metres")
+    if not math.isfinite(yaw_deg) or not 0 <= yaw_deg <= 60:
+        raise ValueError("camera yaw must be in [0, 60] degrees")
     root = ET.fromstring(build.xml)
     for robot, names in build.names.items():
         original = names.cameras.get("head_camera")
@@ -38,13 +76,16 @@ def add_camera_rig(build, offset_m: float) -> None:
             if camera is None:
                 continue
             position = np.fromstring(camera.get("pos"), sep=" ")
-            right = matrix_from_quat(np.fromstring(camera.get("quat"), sep=" "))[:, 0]
+            orientation = np.fromstring(camera.get("quat"), sep=" ")
+            right = matrix_from_quat(orientation)[:, 0]
             for sensor_id, sign in ((CAMERA_IDS[0], -1), (CAMERA_IDS[2], 1)):
                 if sensor_id in names.cameras:
                     raise ValueError(f"reserved camera id already exists: {sensor_id}")
                 side = copy.deepcopy(camera)
                 side.set("name", f"{robot}::{sensor_id}")
                 side.set("pos", " ".join(str(v) for v in position + sign * offset_m * right))
+                rotation = quat_from_axis_angle([0, 1, 0], -sign * math.radians(yaw_deg))
+                side.set("quat", " ".join(str(v) for v in quat_mul(orientation, rotation)))
                 body.append(side)
                 names.cameras[sensor_id] = side.get("name")
             break
@@ -70,7 +111,8 @@ class CameraRenderer:
             _, sensor = sim.camera_pose(robot)
             intrinsics = dict(sensor["intrinsics"])
             epoch = sim._epoch
-        return self.render_data(robot, ids, intrinsics, epoch)
+            sensor_state = _sensor_kinematics(sim, robot)
+        return {**self.render_data(robot, ids, intrinsics, epoch), "_sensor_state": sensor_state}
 
     def render_data(self, robot: str, ids: tuple[str, ...], intrinsics: dict, epoch: int) -> dict:
         """Render the installed private data, with all views sharing its exact simulation time."""
@@ -118,6 +160,8 @@ class CameraPipeline:
         self._revision = 0
         self._closed = False
         self._capture_robot: str | None = None
+        from steward.world.rgb_recording import SensorRecordings
+        self.recordings = SensorRecordings(sim)
 
     def state(self, robot: str) -> dict:
         with self._lock:
@@ -156,11 +200,57 @@ class CameraPipeline:
             state = self.state(robot)
             ids = CAMERA_IDS if state["mode"] == "triple" else ("head_camera",)
             result = self._frame(robot, ids)
+        result.pop("_sensor_state")
         for view in result["views"].values():
             view["image"] = "data:image/jpeg;base64," + base64.b64encode(encode_image(view.pop("rgb"), "jpeg")).decode("ascii")
         return {**result, **state}
 
+    def sensor_snapshot(self, robot: str) -> dict:
+        """Capture three RGB views at one timestamp, exposing only relative calibration."""
+        with self._lock:
+            if self._closed:
+                raise HttpError(503, "相机服务已关闭")
+            frame = self._frame(robot, CAMERA_IDS)
+        sensor_state = frame["_sensor_state"]
+        views = {}
+        for camera in CAMERA_IDS:
+            view = frame["views"][camera]
+            views[camera] = {"width": view["width"], "height": view["height"], "K": view["K"],
+                             **sensor_state["views"][camera],
+                             "image": "data:image/jpeg;base64," + base64.b64encode(
+                                 encode_image(view["rgb"], "jpeg")).decode("ascii")}
+        return {**sensor_state, "views": views}
+
+    def calibration(self, robot: str) -> dict:
+        """Return fixed RGB calibration without rendering, moving or changing camera mode."""
+        with self._lock:
+            if self._closed:
+                raise HttpError(503, "相机服务已关闭")
+            sim = self._sim()
+            with sim.lock:
+                return _calibration(sim, robot)
+
+    def kinematics(self, robot: str) -> dict:
+        """Read joint encoders and relative rig calibration without rendering any images."""
+        with self._lock:
+            if self._closed:
+                raise HttpError(503, "相机服务已关闭")
+            sim = self._sim()
+            with sim.lock:
+                return _sensor_kinematics(sim, robot)
+
+    def odometry_kinematics(self, robot: str) -> dict:
+        """Read synchronized encoder/odometry measurements in an opaque robot odometry frame."""
+        with self._lock:
+            if self._closed:
+                raise HttpError(503, "相机服务已关闭")
+            sim = self._sim()
+            with sim.lock:
+                return _sensor_kinematics(sim, robot) | {"odometry": sim.odometry(robot),
+                                                        "odometry_frame": sim.odometry_frame_id}
+
     def close(self) -> None:
+        self.recordings.close()
         with self._lock:
             if self._closed:
                 return

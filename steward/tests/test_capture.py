@@ -47,11 +47,14 @@ def test_zip_has_48_synchronized_images_calibration_and_world_transform(rig):
         assert len(scene["frames"]) == 16
         assert list(scene["cameras"]) == list(EXPORT_IDS)
         assert scene["metadata"]["pose_source"] == "simulation_ground_truth"
+        preview = cameras.preview("w:robot-1")
         for frame in scene["frames"]:
             for view in frame["views"].values():
                 assert archive.read(view["image"]).startswith(b"\x89PNG")
             poses = [np.array(frame["views"][key]["camera_to_world"]) for key in EXPORT_IDS]
             np.testing.assert_allclose(poses[2][:3, 3] - poses[0][:3, 3], 0.24 * poses[1][:3, 0], atol=1e-6)
+            for pose, source in zip(poses, ("head_camera_left", "head_camera", "head_camera_right")):
+                np.testing.assert_allclose(pose, preview["views"][source]["camera_to_world"], atol=1e-6)
         cv = np.array(scene["frames"][0]["views"][EXPORT_IDS[1]]["camera_to_world"])
         flu = np.array(scene["metadata"]["T_world_scene"])
         np.testing.assert_allclose(flu[:3, 0], cv[:3, 2])

@@ -8,3 +8,4 @@ dsh/packages/*/node_modules/
 dsh/packages/*/lib/
 dsh/packages/*/tsconfig.tsbuildinfo
 MUJOCO_LOG.TXT
+tools/tmp/

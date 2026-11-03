@@ -13,9 +13,8 @@
       config:
         maxRisk: 0.35
 
-# The robot perceives and acts only through ctx.ego. General computer tools inherited from
-# dsh-base would let the model run commands, read files (including simulator data holding
-# World State) or browse the web, bypassing the Ego-State boundary.
+# Robot observations and motion use ctx.ego; optional synthesis tools return predictions.
+# General computer tools could expose simulator World State or bypass Ego-State controls.
 - id: tool-bash
   disabled: true
 - id: tool-pwsh
@@ -32,3 +31,17 @@
   disabled: true
 - id: tool-working-directory
   disabled: true
+
+# Retry interrupted model responses within the current step; completed tools stay committed.
+- id: llm-deepseek
+  config:
+    retryPolicy:
+      mode: normal
+      maxRetries: 5
+      retryableCodes:
+        - EMPTY_RESPONSE
+        - RATE_LIMIT
+        - SERVER
+        - TIMEOUT
+        - TRANSPORT
+        - STREAM_CLOSED

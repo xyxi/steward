@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Add remote 4D reconstruction to the World Harness. The layer provides upload, progress, cancellation and verified artifact downloads. Install it into the world profiles and give the agent a local Waymo ZIP; the reconstruction model runs on the configured server.
+Add remote scene 4D reconstruction to both World and robot Ego Harnesses through the `slarm` skill. The layer provides upload, progress, cancellation and verified artifact downloads. Install it into the caller profile and give the agent a compliant three-camera sequence ZIP; the reconstruction model runs on the configured server.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ Add remote 4D reconstruction to the World Harness. The layer provides upload, pr
 <a id="use-this-package"></a>
 ## Use this package
 
-From the Steward directory, with its DSH dependencies available, run the Windows installer below. It builds the local plugins and adds the bundle to `world` and `world-task` under `var/dsh/world`. Existing profile settings remain in place.
+From the Steward directory, with its DSH dependencies available, run the Windows installer below. It builds the local plugins and adds the tools and skill to `world` and `world-task` under `var/dsh/world` and `ego` under `var/dsh/robot-1`. Existing profile settings remain in place.
 
 ```powershell
 
@@ -33,7 +33,7 @@ From the Steward directory, with its DSH dependencies available, run the Windows
 
 ```
 
-The [complete profile installer](../../../scripts/setup-dsh-profiles.sh) also installs this layer on macOS/Linux. Restart Steward with `run_windows.bat` after updating the World chat instructions, open the console and select **World Harness**.
+The [complete profile installer](../../../scripts/setup-dsh-profiles.sh) also installs this layer on macOS/Linux. Restart Steward with `run_windows.bat` after updating the World chat instructions, open the console and select the World or robot harness.
 
 Put a compliant ZIP at `var/input/scene.zip`, then send:
 
@@ -41,7 +41,9 @@ Put a compliant ZIP at `var/input/scene.zip`, then send:
 
 A compliant archive contains preprocessed Waymo images from three cameras, calibration, known poses and timestamps. Reconstruction accepts 16–256 time frames; `[0,16)` uses frames 0 through 15. A plain video ZIP is not this input format.
 
-For the running simulation, use `world_cameras` to select `triple`, `world_capture` to start recording and `world_capture_status` to wait for `succeeded`. Pass its `archive_path` to `slarm_upload` with `format: "slarm_scene_v1"`, then follow the same validation, reconstruction and download steps. `world_capture_cancel` requests local recording cancellation; only a `cancelled` status confirms cleanup. Stopping chat stops waiting but leaves an accepted recording running. After a lost start response, query `world_cameras` for the latest capture before starting another.
+Robot must use its own observed sequence and known or estimated poses, or a supplied compliant ZIP in its workspace. The single-timestamp `ego_capture_cameras` tool does not provide the 16–256 time frames required by SLARM. Robot must not use privileged World capture or simulator files.
+
+For World reconstruction of the running simulation, use `world_cameras` to select `triple`, `world_capture` to start recording and `world_capture_status` to wait for `succeeded`. Pass its `archive_path` to `slarm_upload` with `format: "slarm_scene_v1"`, then follow the same validation, reconstruction and download steps. `world_capture_cancel` requests local recording cancellation; only a `cancelled` status confirms cleanup. Stopping chat stops waiting but leaves an accepted recording running. After a lost start response, query `world_cameras` for the latest capture before starting another.
 
 Recording accepts 16–256 synchronized time points at 1–30 fps, provided the sampling period is an integer number of physics steps (10 fps works with the default step). Its bounded queue copies simulation states; image rendering and ZIP packaging run on a separate thread. Queue overflow, scene replacement and a 120-second wall-clock timeout fail visibly. Pause the robot's motion independently if required; pausing the simulation prevents recording progress. A host permits one recording at a time, and the camera-mode button stays locked until cleanup completes.
 
@@ -51,7 +53,7 @@ Exports persist under `<Steward root>/captures/<capture_id>/scene.zip` (normally
 
 To resume, supply the returned `dataset_id` or `reconstruction_id`. To stop remote work, explicitly ask “Cancel reconstruction rec_… and confirm its final status.” Stopping chat only stops local waiting.
 
-Use the [client settings](../dsh-slarm-client/README.md#use-this-package) to change the server or directories. The defaults are `http://115.120.57.9/slarm`, input root `.` and state directory `var/slarm`, relative to the DSH launch directory. Launch from Steward or configure absolute directories.
+Use the [client settings](../dsh-slarm-client/README.md#use-this-package) to change the server or directories. The bundle requires the caller’s `DSH_HOME`, set by Steward and the installers. It saves inputs, outputs and recovery records beneath `DSH_HOME/workspace/inputs/slarm`, `DSH_HOME/workspace/outputs/slarm` and `DSH_HOME/workspace/var/slarm`, independently of the launch directory. The default endpoint is `http://115.120.57.9/slarm`. Input admission remains relative to the launch directory: World may submit its captured ZIPs; robot input paths must stay beneath the robot workspace.
 
 
 -----

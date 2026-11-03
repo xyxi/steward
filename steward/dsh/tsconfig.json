@@ -11,6 +11,12 @@
     { "path": "packages/dsh-tool-world" },
     { "path": "packages/dsh-slarm" },
     { "path": "packages/dsh-slarm-client" },
-    { "path": "packages/dsh-tool-slarm" }
+    { "path": "packages/dsh-tool-slarm" },
+    { "path": "packages/dsh-rgbd-video-gen" },
+    { "path": "packages/dsh-rgbd-video-gen-client" },
+    { "path": "packages/dsh-tool-rgbd-video-gen" },
+    { "path": "packages/dsh-novelanything" },
+    { "path": "packages/dsh-novelanything-client" },
+    { "path": "packages/dsh-tool-novelanything" }
   ]
 }

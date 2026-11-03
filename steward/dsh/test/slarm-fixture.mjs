@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -13,7 +13,7 @@ const signal = () => AbortSignal.timeout(10_000)
 const hash = data => createHash('sha256').update(data).digest('hex')
 
 export async function fixture(t, options = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'steward-slarm-'))
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'steward-slarm-')))
   const archive = Buffer.from('PK\x03\x04fixture')
   await writeFile(join(root, 'scene.zip'), archive)
   const calls = []

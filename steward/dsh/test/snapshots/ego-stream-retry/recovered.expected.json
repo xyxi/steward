@@ -1,0 +1,6 @@
+[
+  { "type": "tool/call", "name": "ego_rgb_recording_start", "arguments": { "fps": 2, "max_frames": 3, "request_key": "stream-start-001" } },
+  { "type": "llm/retry", "code": "SERVER" },
+  { "type": "llm/retry", "code": "STREAM_CLOSED" },
+  { "type": "turn/end", "reason": "completed" }
+]

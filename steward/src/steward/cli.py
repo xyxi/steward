@@ -22,6 +22,8 @@ import time
 from pathlib import Path
 
 from steward.phases import LATEST_PHASE, PHASES
+from steward.net import PortInUseError
+from steward.instances import InstanceStopError, register_instance
 
 STEWARD_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_ROOT = STEWARD_DIR / "var" / "steward"
@@ -63,7 +65,8 @@ def _host(args, run_dir: Path):
                        wca_port=args.wca_port, robot_ports=ports, chat=_chat_config(args),
                        phase=args.phase, bind_wait_s=getattr(args, "bind_wait", 0.0),
                        pause_on_perception_fault=getattr(args, "pause_on_perception_fault", False),
-                       camera_offset_m=getattr(args, "camera_offset", 0.12)).start()
+                       camera_offset_m=getattr(args, "camera_offset", 0.12),
+                       camera_yaw_deg=getattr(args, "camera_yaw", 25)).start()
 
 
 def _chat_config(args):
@@ -162,6 +165,12 @@ class _EgoProcess:
 
 
 def cmd_up(args) -> int:
+    if os.name == "nt":
+        from steward.instances import replace_port_owners
+
+        stopped = replace_port_owners([args.wca_port, args.robot_port, args.api_port], STEWARD_DIR)
+        if stopped:
+            print(f"steward up: stopped old instance(s) {stopped}; starting replacement", file=sys.stderr, flush=True)
     run_dir = Path(args.root) / "runs" / time.strftime("%Y%m%d-%H%M%S")
     host = _host(args, run_dir)
     robot_url = host.robot_servers["w:robot-1"].url
@@ -173,13 +182,20 @@ def cmd_up(args) -> int:
     host.attach_ego_api("w:robot-1", ego.url)
     if host.chat.config is not None:
         host.chat.config.ego_api = ego.url
-    print(json.dumps({"console": f"{host.wca.url}/console", "wca": host.wca.url, "robot": robot_url, "egoApi": ego.url, "runDir": str(run_dir),
-                      "task": host.scenario["task"]}, ensure_ascii=False), flush=True)
+    try:
+        if os.name == "nt":
+            register_instance([args.wca_port, args.robot_port, args.api_port], STEWARD_DIR)
+    except BaseException:
+        ego.stop()
+        host.stop()
+        raise
 
     def pump(timeout: float) -> None:
         host.pump(timeout)
         ego.check()
 
+    print(json.dumps({"console": f"{host.wca.url}/console", "wca": host.wca.url, "robot": robot_url, "egoApi": ego.url, "runDir": str(run_dir),
+                      "task": host.scenario["task"]}, ensure_ascii=False), flush=True)
     _wait_forever([ego.stop, host.stop], pump)
     return 0
 
@@ -436,6 +452,8 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--speed", type=float, default=4.0 if in_process else 1.0)
         p.add_argument("--camera-offset", type=float, default=0.12,
                        help="left/right camera offset from the original camera in metres (0, 0.5]")
+        p.add_argument("--camera-yaw", type=float, default=25,
+                       help="outward side-camera angle in degrees [0, 60]; 0 keeps cameras parallel")
         p.add_argument("--seed", type=int, default=0)
         p.add_argument("--phase", choices=sorted(PHASES), default=LATEST_PHASE,
                        help="phase level of the replaceable modules (switchable at run time from the console)")
@@ -474,7 +492,15 @@ def main(argv: list[str] | None = None) -> int:
                    help="seconds to wait for a fixed port still held by a service that just stopped")
     p.set_defaults(fn=cmd_ego)
     args = parser.parse_args(argv)
-    return args.fn(args)
+    try:
+        return args.fn(args)
+    except PortInUseError as exc:
+        print(f"steward: cannot start {exc.service}: {exc.host}:{exc.port} is already in use. "
+              "Stop the existing service before restarting Steward.", file=sys.stderr)
+        return 1
+    except InstanceStopError as exc:
+        print(f"steward: {exc} Stop the old instance manually before retrying.", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

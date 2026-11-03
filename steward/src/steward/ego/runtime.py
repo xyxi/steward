@@ -18,6 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from steward.ego.classify import classify
+from steward.ego.kinematics import gripper_pose
 from steward.ego.perception import box_of, decode_rgbd, segments
 from steward.ego.esim import Esim, EsimConfig
 from steward.ego.estimator import SELF_ID, EgoEstimator
@@ -52,6 +53,35 @@ class RobotLink:
     def rgbd(self) -> bytes:
         """One RGB-D frame (``npz``) when the world provides raw imaging instead of detections."""
         return call("GET", f"{self.url}/sensors/rgbd")
+
+    def cameras(self) -> dict:
+        """Synchronized three-camera RGB with relative rig calibration."""
+        return call("GET", f"{self.url}/sensors/cameras")
+
+    def kinematics(self) -> dict:
+        """Joint encoders and relative camera calibration from one sensor timestamp."""
+        return call("GET", f"{self.url}/sensors/kinematics")
+
+    def camera_calibration(self) -> dict:
+        """Fixed RGB intrinsics and camera-to-middle-RGB extrinsics, without image capture."""
+        return call("GET", f"{self.url}/sensors/cameras/calibration")
+
+    def rgb_recording_start(self, body: dict) -> dict:
+        return call("POST", f"{self.url}/sensors/rgb/record/start", body)
+
+    def rgb_recording_status(self, id: str) -> dict:
+        from urllib.parse import urlencode
+        return call("GET", f"{self.url}/sensors/rgb/record/status?{urlencode({'recording_id': id})}")
+
+    def rgb_recording_stop(self, id: str, cancel: bool) -> dict:
+        return call("POST", f"{self.url}/sensors/rgb/record/stop", {"recording_id": id, "cancel": cancel}, timeout=25)
+
+    def rgb_recording_result(self, id: str) -> dict:
+        from urllib.parse import urlencode
+        return call("GET", f"{self.url}/sensors/rgb/record/result?{urlencode({'recording_id': id})}")
+
+    def rgb_pose(self) -> dict:
+        return call("GET", f"{self.url}/sensors/rgb/pose")
 
     def command(self, cmd: dict) -> None:
         call("POST", f"{self.url}/command", cmd)
@@ -294,6 +324,36 @@ class EgoRuntime:
             r = radius if radius is not None else 1.0
             objs = [o for o in objs if o["id"] != near and math.dist(o["position"][:2], anchor["position"][:2]) <= r]
         return objs
+
+    def capture_cameras(self) -> dict:
+        """Capture three RGB views without moving or changing the perception loop.
+
+        The packet contains sensor images, intrinsics, fixed camera-to-reference calibration
+        and gripper kinematics computed from the same encoder sample. It does not provide an
+        absolute camera pose.
+        """
+        packet = self.link.cameras()
+        pose = gripper_pose(self.estimator.robot_model, packet)
+        return {key: value for key, value in packet.items() if key != "joint_encoders"} | {"gripper_pose": pose}
+
+    def gripper_pose(self) -> dict:
+        """Current gripper-link pose relative to the base and all three cameras, without imaging."""
+        return gripper_pose(self.estimator.robot_model, self.link.kinematics())
+
+    def camera_calibration(self) -> dict:
+        """Read fixed camera calibration through the robot sensor port, with no absolute poses."""
+        return self.link.camera_calibration()
+
+    def prepare_novelanything(self, id: str, source_count: int | None = None) -> dict:
+        """Export measured evidence and a current gripper target; no motion or inference is performed."""
+        from steward.ego.novelanything_scene import prepare_gripper_scene
+        return prepare_gripper_scene(self.estimator.robot_model, self.link.rgb_recording_result(id),
+                                     self.link.rgb_pose(), source_count)
+
+    def recording_evidence(self, id: str) -> dict:
+        """Export all measured RGB evidence and a synchronized current gripper target frame."""
+        from steward.ego.recording_evidence import recording_evidence
+        return recording_evidence(self.estimator.robot_model, self.link.rgb_recording_result(id), self.link.rgb_pose())
 
     def observe(self) -> dict:
         frame = self.link.sensors()

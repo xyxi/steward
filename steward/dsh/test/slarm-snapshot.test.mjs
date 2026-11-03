@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { fixture } from './slarm-fixture.mjs'
@@ -37,10 +37,13 @@ function portable(value, f) {
   return value.replaceAll(f.config.endpoint, '{{endpoint}}').replaceAll(f.root, '{{cwd}}')
     .replace(/\{\{cwd\}\}\\/g, '{{cwd}}/').replaceAll('\\', '/')
     .replace(/(state\/)[a-f0-9]{16}(\/)/g, '$1{{service}}$2')
+    .replace(/(var\/slarm\/)[a-f0-9]{16}(\/)/g, '$1{{service}}$2')
 }
 
-for (const capture of [false, true]) test(capture ? 'three-camera headless recorded session captures and reconstructs without a key'
-  : 'SLARM headless recorded session presents verified multi-window results without a key', { timeout: 240_000 }, async t => {
+for (const mode of ['world', 'world-capture', 'robot']) test(mode === 'world-capture'
+  ? 'three-camera headless recorded session captures and reconstructs without a key'
+  : `${mode} SLARM headless recorded session presents verified multi-window results without a key`, { timeout: 240_000 }, async t => {
+  const capture = mode === 'world-capture', robot = mode === 'robot'
   const snapshot = join(import.meta.dirname, 'snapshots', capture ? 'camera-slarm' : 'slarm')
   const f = await fixture(t)
   f.state.job = 'succeeded'
@@ -55,10 +58,13 @@ for (const capture of [false, true]) test(capture ? 'three-camera headless recor
   await launch(['--profile', 'slarm-test', '--from-default-profile', 'headless', '--dump-default-config'], f.root, env)
   await launch(['plugin', '--profile', 'slarm-test', 'add', join(workspace, 'packages/dsh-bundle-slarm')], f.root, env)
   if (capture) await launch(['plugin', '--profile', 'slarm-test', 'add', join(workspace, 'packages/dsh-bundle-world')], f.root, env)
+  if (robot) await launch(['plugin', '--profile', 'slarm-test', 'add', join(workspace, 'packages/dsh-bundle-ego')], f.root, env)
   const patch = [
     { id: 'session-title-llm', disabled: true },
     { id: 'agent-default-model', config: { provider: 'deepseek-official', model: 'deepseek-flash' } },
-    { id: 'steward-slarm-api', config: { endpoint: f.config.endpoint, inputRoot: f.root, stateDir: 'state' } },
+    { id: 'steward-slarm-api', config: { endpoint: f.config.endpoint, inputRoot: f.root,
+      stateDir: join(env.DSH_HOME, 'workspace/var/slarm'),
+      inputsDir: join(env.DSH_HOME, 'workspace/inputs/slarm'), outputsDir: join(env.DSH_HOME, 'workspace/outputs/slarm') } },
     { id: 'session-persistence-jsonl', config: { root: './sessions', compression: 'none' } },
     { id: 'session-log-deepseek', config: { enabled: false } },
   ]
@@ -70,11 +76,22 @@ for (const capture of [false, true]) test(capture ? 'three-camera headless recor
   const patchPath = join(f.root, 'snapshot.patch.json')
   await writeFile(patchPath, JSON.stringify(patch))
   const output = await launch(['--profile', 'slarm-test', '--patch', patchPath, '--json', capture ? capturePrompt : prompt], f.root, env)
+  const records = await readdir(join(f.root, 'sessions'), { recursive: true })
+  const log = records.find(path => path.endsWith('session.v4.jsonl'))
+  const rows = (await readFile(join(f.root, 'sessions', log), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+  const tools = rows.findLast(row => row.type === 'request/header').data.header.tools.map(tool => tool.name)
+  assert.ok(rows.some(row => row.type === 'user/message' && row.data.source.kind === 'skill-catalog'
+    && row.data.source.entries.some(skill => skill.name === 'slarm')))
+  if (robot) {
+    assert.ok(tools.includes('ego_capture_cameras'))
+    assert.ok(!tools.some(name => /^(world_|bash$|pwsh$|fs$|fs_search$)/.test(name)))
+  }
   const events = output.trim().split('\n').filter(line => line.startsWith('{')).map(line => JSON.parse(line))
   assert.ok(events.some(event => event.type === 'final'), 'the recorded turn finishes')
   const results = events.filter(event => event.type === 'tool_result')
   assert.ok(capture ? results.length >= 9 : results.length === 3, output)
   assert.ok(results.every(event => event.status === 'completed'), JSON.stringify(results.filter(event => event.status !== 'completed')))
+  assert.ok(tools.includes('slarm_upload') && tools.includes('slarm_download'), JSON.stringify(tools))
   const normalized = results.map(event => portable(JSON.parse(event.result), f))
   const calls = new Map(events.filter(event => event.type === 'tool_call').map(event => [event.callId, event.tool]))
   const byName = name => normalized[results.findIndex(event => calls.get(event.callId) === name)]
@@ -84,6 +101,9 @@ for (const capture of [false, true]) test(capture ? 'three-camera headless recor
   assert.equal(summary.model_calls, 2); assert.equal(summary.distinct_input_images, 15)
   assert.equal(summary.input_image_occurrences, 24); assert.equal(summary.output_images, 63)
   assert.ok(tail[2].files.every(file => file.verified && !file.reused))
+  assert.ok(tail[2].files.every(file => file.path.startsWith('{{cwd}}/home/workspace/outputs/slarm/')))
+  await assert.rejects(access(join(f.root, 'inputs')), { code: 'ENOENT' })
+  await assert.rejects(access(join(f.root, 'outputs')), { code: 'ENOENT' })
   assert.equal(f.state.postCount, capture ? 1 : 0)
   if (capture) {
     assert.equal(byName('world_cameras').mode, 'triple')
@@ -93,8 +113,6 @@ for (const capture of [false, true]) test(capture ? 'three-camera headless recor
   }
   const transcript = JSON.stringify(normalized, null, 2) + '\n'
   if (recording) {
-    const records = await readdir(join(f.root, 'sessions'), { recursive: true })
-    const log = records.find(path => path.endsWith('session.v4.jsonl'))
     assert.ok(log, 'the profile persists a Session')
     const staging = resolve(workspace, '../var/slarm-validation', capture ? 'camera-snapshot' : 'snapshot')
     await mkdir(staging, { recursive: true })
@@ -102,6 +120,8 @@ for (const capture of [false, true]) test(capture ? 'three-camera headless recor
     await writeFile(join(staging, 'recording.json'), JSON.stringify({ cwd: f.root, endpoint: f.config.endpoint }))
     await mkdir(snapshot, { recursive: true })
     await writeFile(join(snapshot, 'session.v4.jsonl'), portableSession(await readFile(join(f.root, 'sessions', log), 'utf8'), f.root, f.config.endpoint))
+    await writeFile(join(snapshot, 'tools.expected.json'), transcript)
+  } else if (process.env.UPDATE_TOOL_SNAPSHOTS === '1') {
     await writeFile(join(snapshot, 'tools.expected.json'), transcript)
   } else assert.equal(transcript, await readFile(join(snapshot, 'tools.expected.json'), 'utf8'))
 })

@@ -41,7 +41,8 @@ test('robot tools complete the cup-to-table mission through the Ego API provider
   await buildKitchen(root)
   const { child, info } = await startSteward(root)
   try {
-    const ego = new EgoRuntimeClient(new Context(), { endpoint: info.egoApi, timeoutMs: 15_000 })
+    const ego = new EgoRuntimeClient(new Context(), { endpoint: info.egoApi, timeoutMs: 15_000,
+      cameraCaptureDir: join(root, 'captures'), cameraMaxBytes: 16 * 1024 * 1024 })
     const tools = Object.fromEntries(egoTools(ego).map(t => [t.name, t]))
     const run = (name, args = {}) => tools[name].execute(args, { name, arguments: args, signal: AbortSignal.timeout(200_000) })
 

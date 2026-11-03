@@ -1,6 +1,7 @@
 /** Atomic local metadata and streaming file digests. */
 import { createHash, randomUUID } from 'node:crypto'
-import { createReadStream } from 'node:fs'
+import { createReadStream, createWriteStream } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
 import { link, mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { SlarmError, type JsonObject } from '@steward/dsh-slarm'
@@ -30,6 +31,27 @@ export async function fileDigest(path: string, signal: AbortSignal): Promise<str
   const hash = createHash('sha256')
   for await (const chunk of createReadStream(path, { signal })) hash.update(chunk)
   return hash.digest('hex')
+}
+
+/** Archive exact upload bytes before submitting, publishing only a verified complete copy.
+ * @param source - admitted upload file.
+ * @param target - content-addressed archive path.
+ * @param sha256 - expected source digest.
+ * @param signal - cancellation.
+ * @returns completion after publication and cleanup.
+ */
+export async function snapshotFile(source: string, target: string, sha256: string, signal: AbortSignal): Promise<void> {
+  await mkdir(dirname(target), { recursive: true })
+  const temporary = `${target}.${randomUUID()}.part`
+  try {
+    await pipeline(createReadStream(source), createWriteStream(temporary, { flags: 'wx' }), { signal })
+    if (await fileDigest(temporary, signal) !== sha256) {
+      throw new SlarmError('Input changed while archiving; no upload was sent.', 'INPUT_CHANGED')
+    }
+    await rename(temporary, target)
+  } finally {
+    try { await unlink(temporary) } catch (error) { if (!hasCode(error, 'ENOENT')) throw error }
+  }
 }
 
 /** Publish complete JSON atomically, optionally refusing replacement.

@@ -158,7 +158,8 @@
         "download_url": "{{endpoint}}/v1/reconstructions/rec_one/artifacts/art_3"
       }
     ],
-    "local_result_path": "{{cwd}}/state/{{service}}/results/rec_one/result.json",
+    "local_result_path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/result.json",
+    "local_manifest_path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/manifest.json",
     "interpretation": "Geometry, semantics and motion are predictions. Point counts are not object counts. quality_status=ok is not accuracy validation. Windows are not globally fused."
   },
   {
@@ -167,7 +168,7 @@
       {
         "artifact_id": "art_1",
         "kind": "pointcloud",
-        "path": "{{cwd}}/state/{{service}}/results/rec_one/art_1/points.npz",
+        "path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/art_1/points.npz",
         "bytes": 27,
         "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
         "verified": true,
@@ -176,7 +177,7 @@
       {
         "artifact_id": "art_2",
         "kind": "pointcloud",
-        "path": "{{cwd}}/state/{{service}}/results/rec_one/art_2/points.npz",
+        "path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/art_2/points.npz",
         "bytes": 27,
         "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
         "verified": true,
@@ -185,12 +186,13 @@
       {
         "artifact_id": "art_3",
         "kind": "rgb_video",
-        "path": "{{cwd}}/state/{{service}}/results/rec_one/art_3/video.mp4",
+        "path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/art_3/video.mp4",
         "bytes": 27,
         "sha256": "e664895d67af64b20a067ff161745670e92cda16846c46dcdfcbdeffb8c5db69",
         "verified": true,
         "reused": false
       }
-    ]
+    ],
+    "local_manifest_path": "{{cwd}}/home/workspace/outputs/slarm/rec_one/manifest.json"
   }
 ]

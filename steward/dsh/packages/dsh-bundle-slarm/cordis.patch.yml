@@ -4,6 +4,16 @@
       config:
         endpoint: 'http://115.120.57.9/slarm'
         inputRoot: '.'
-        stateDir: 'var/slarm'
+        stateDir: !!js process.getBuiltinModule('node:path').resolve(process.env.DSH_HOME, 'workspace/var/slarm')
+        inputsDir: !!js process.getBuiltinModule('node:path').resolve(process.env.DSH_HOME, 'workspace/inputs/slarm')
+        outputsDir: !!js process.getBuiltinModule('node:path').resolve(process.env.DSH_HOME, 'workspace/outputs/slarm')
     - id: steward-tool-slarm
       name: '@steward/dsh-tool-slarm'
+    - id: steward-slarm-skills
+      name: '@deepseek-ai/dsh-skill-filesystem'
+      config:
+        providerName: steward-slarm
+        includeDefaultRoots: false
+        watch: false
+        bundledSkillDir: !!js >-
+          process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@steward/dsh-bundle-slarm/package.json')), 'skills')

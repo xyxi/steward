@@ -1,0 +1,392 @@
+[
+  {
+    "stamp": 42.125,
+    "reference_camera": "head_camera",
+    "camera_axes": "opencv_x_right_y_down_z_forward",
+    "calibration_source": "rig_calibration",
+    "views": {
+      "head_camera_left": {
+        "width": 320,
+        "height": 240,
+        "K": [
+          [
+            200,
+            0,
+            159.5
+          ],
+          [
+            0,
+            200,
+            119.5
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "camera_to_reference": [
+          [
+            1,
+            0,
+            0,
+            -0.12
+          ],
+          [
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ],
+        "image_path": "{{cwd}}/workspace/captures/{{capture}}/head_camera_left.jpg",
+        "bytes": 6
+      },
+      "head_camera": {
+        "width": 320,
+        "height": 240,
+        "K": [
+          [
+            200,
+            0,
+            159.5
+          ],
+          [
+            0,
+            200,
+            119.5
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "camera_to_reference": [
+          [
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ],
+        "image_path": "{{cwd}}/workspace/captures/{{capture}}/head_camera.jpg",
+        "bytes": 6
+      },
+      "head_camera_right": {
+        "width": 320,
+        "height": 240,
+        "K": [
+          [
+            200,
+            0,
+            159.5
+          ],
+          [
+            0,
+            200,
+            119.5
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "camera_to_reference": [
+          [
+            1,
+            0,
+            0,
+            0.12
+          ],
+          [
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ],
+        "image_path": "{{cwd}}/workspace/captures/{{capture}}/head_camera_right.jpg",
+        "bytes": 6
+      }
+    },
+    "gripper_pose": {
+      "stamp": 42.125,
+      "pose_source": "joint_encoders_and_robot_model",
+      "gripper_frame": "gripper",
+      "gripper_axes": "x_forward_y_left_z_up",
+      "camera_axes": "opencv_x_right_y_down_z_forward",
+      "joint_positions": {
+        "lift": 0.6,
+        "reach": 0.1
+      },
+      "gripper_to_base": [
+        [
+          1,
+          0,
+          0,
+          0.36
+        ],
+        [
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          0.6
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ],
+      "gripper_to_camera": {
+        "head_camera_left": [
+          [
+            1,
+            0,
+            0,
+            0.12
+          ],
+          [
+            0,
+            1,
+            0,
+            0.5
+          ],
+          [
+            0,
+            0,
+            1,
+            0.7
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ],
+        "head_camera": [
+          [
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0,
+            0.5
+          ],
+          [
+            0,
+            0,
+            1,
+            0.7
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ],
+        "head_camera_right": [
+          [
+            1,
+            0,
+            0,
+            -0.12
+          ],
+          [
+            0,
+            1,
+            0,
+            0.5
+          ],
+          [
+            0,
+            0,
+            1,
+            0.7
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ]
+      }
+    },
+    "manifest_path": "{{cwd}}/workspace/captures/{{capture}}/capture.json"
+  },
+  {
+    "stamp": 42.125,
+    "pose_source": "joint_encoders_and_robot_model",
+    "gripper_frame": "gripper",
+    "gripper_axes": "x_forward_y_left_z_up",
+    "camera_axes": "opencv_x_right_y_down_z_forward",
+    "joint_positions": {
+      "lift": 0.6,
+      "reach": 0.1
+    },
+    "gripper_to_base": [
+      [
+        1,
+        0,
+        0,
+        0.36
+      ],
+      [
+        0,
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1,
+        0.6
+      ],
+      [
+        0,
+        0,
+        0,
+        1
+      ]
+    ],
+    "gripper_to_camera": {
+      "head_camera_left": [
+        [
+          1,
+          0,
+          0,
+          0.12
+        ],
+        [
+          0,
+          1,
+          0,
+          0.5
+        ],
+        [
+          0,
+          0,
+          1,
+          0.7
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ],
+      "head_camera": [
+        [
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0.5
+        ],
+        [
+          0,
+          0,
+          1,
+          0.7
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ],
+      "head_camera_right": [
+        [
+          1,
+          0,
+          0,
+          -0.12
+        ],
+        [
+          0,
+          1,
+          0,
+          0.5
+        ],
+        [
+          0,
+          0,
+          1,
+          0.7
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ]
+    }
+  }
+]

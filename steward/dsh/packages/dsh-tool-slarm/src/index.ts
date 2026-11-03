@@ -76,7 +76,7 @@ export function slarmTools(slarm: SlarmService): ToolDefinition[] {
     }),
     defineTool({ name: 'slarm_download',
       description: 'Download selected artifact ids from a successful result. Select ALL pointcloud artifacts for all windows plus desired videos. '
-        + 'Saves beneath the configured stateDir, verifies bytes and SHA256, reuses verified files and returns absolute paths. '
+        + 'Saves beneath outputsDir, verifies bytes and SHA256, reuses verified files and returns absolute paths plus local_manifest_path. '
         + 'There is no all-results ZIP. Download failures do not invalidate completed reconstruction; retry this operation.',
       parameters: { reconstruction_id: rec, artifact_ids: { type: 'array', items: { type: 'string' }, required: true,
         description: 'Nonempty unique artifact ids returned by slarm_result; never filenames or arbitrary URLs.' } }, output,

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import errno
 import json
+import socket
 import sys
 import threading
 import time
@@ -28,6 +29,14 @@ class HttpError(Exception):
         self.status = status
 
 
+class PortInUseError(OSError):
+    """A named service could not acquire its configured listener before the bind deadline."""
+
+    def __init__(self, service: str, host: str, port: int):
+        self.service, self.host, self.port = service, host, port
+        super().__init__(errno.EADDRINUSE, f"{service}: {host}:{port} is already in use")
+
+
 class Binary:
     """A non-JSON response body, optionally with extra response headers."""
 
@@ -41,9 +50,23 @@ NO_CONTENT = object()
 """A handler result answered with ``204 No Content`` (for example: no newer frame yet)."""
 
 
+class _ServiceHTTPServer(ThreadingHTTPServer):
+    """One listener owns each service address, including on Windows."""
+
+    allow_reuse_address = sys.platform != "win32"
+    allow_reuse_port = False
+
+    def server_bind(self) -> None:
+        if sys.platform == "win32":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 class JsonServer:
-    """Serves ``routes`` on one port. A fixed port that is still held (a service just restarted on
-    it) is retried for up to ``bind_wait_s`` seconds before the bind error is raised."""
+    """Serves ``routes`` on an exclusively owned port. A fixed port that is still held is retried
+    for up to ``bind_wait_s`` seconds before the bind error is raised; an existing listener is
+    never shared with a new service instance. Client disconnects end response transmission;
+    they neither retry nor roll back a route handler that has already run."""
 
     def __init__(self, routes: dict[tuple[str, str], Handler], host: str = "127.0.0.1", port: int = 0, name: str = "",
                  bind_wait_s: float = 0.0):
@@ -79,26 +102,31 @@ class JsonServer:
                     self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
                     return
                 if result is NO_CONTENT:
-                    self.send_response(204)
-                    self.end_headers()
+                    self._respond(204, b"")
                 elif isinstance(result, Binary):
-                    self.send_response(200)
-                    self.send_header("Content-Type", result.content_type)
-                    self.send_header("Content-Length", str(len(result.data)))
-                    for key, value in result.headers.items():
-                        self.send_header(key, value)
-                    self.end_headers()
-                    self.wfile.write(result.data)
+                    self._respond(200, result.data, result.content_type, result.headers)
                 else:
                     self._send(200, result if result is not None else {})
 
             def _send(self, status: int, payload: Any) -> None:
                 data = json.dumps(payload).encode()
-                self.send_response(status)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(data)))
-                self.end_headers()
-                self.wfile.write(data)
+                self._respond(status, data, "application/json")
+
+            def _respond(self, status: int, data: bytes, content_type: str | None = None,
+                         headers: dict[str, str] | None = None) -> None:
+                """Write one response; a closed client transport ends only this connection."""
+                try:
+                    self.send_response(status)
+                    if content_type is not None:
+                        self.send_header("Content-Type", content_type)
+                        self.send_header("Content-Length", str(len(data)))
+                    for key, value in (headers or {}).items():
+                        self.send_header(key, value)
+                    self.end_headers()
+                    if data:
+                        self.wfile.write(data)
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                    self.close_connection = True
 
             def do_GET(self):  # noqa: N802 - http.server naming
                 self._dispatch("GET")
@@ -109,11 +137,15 @@ class JsonServer:
         deadline, waited = time.monotonic() + bind_wait_s, False
         while True:
             try:
-                self._httpd = ThreadingHTTPServer((host, port), _Handler)
+                self._httpd = _ServiceHTTPServer((host, port), _Handler)
                 break
             except OSError as exc:
-                if exc.errno != errno.EADDRINUSE or port == 0 or time.monotonic() >= deadline:
+                occupied = exc.errno == errno.EADDRINUSE or (
+                    sys.platform == "win32" and getattr(exc, "winerror", None) == 10013)
+                if not occupied or port == 0:
                     raise
+                if time.monotonic() >= deadline:
+                    raise PortInUseError(name or "server", host, port) from exc
                 waited = True
                 time.sleep(0.5)
         if waited:

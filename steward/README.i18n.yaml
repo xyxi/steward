@@ -9,14 +9,20 @@
   en: 9535b10be9abb7a8
   zh: 37665fe48339b410
 /steward/run-with-deepseek-harness:
-  en: 05f44174aaa21930
-  zh: e20ad6d58fe572e5
+  en: 1c850e03a3d6a3a0
+  zh: 7603d2cced15ab7c
 /steward/directory-layout:
   en: 2dec8ee4d0d070e2
   zh: ab848017d5301542
 /steward/camera-modes:
-  en: b52b6683cfc498f5
-  zh: 60a767ec6ac609f9
+  en: 6422de2bc0b33c27
+  zh: c98a31d445e690be
+/steward/robot-three-camera-capture:
+  en: 55780ee7ad23f5b6
+  zh: e221178aac05dabd
 /steward/remote-4d-reconstruction:
-  en: 545863f65125886e
-  zh: 94b05bd0b4b4eecb
+  en: d3117d5f04d1d1b9
+  zh: bbdacae0699788a0
+/steward/novel-view-rgb-depth-generation:
+  en: 9df31816bff980ad
+  zh: e6c4ea829c413500

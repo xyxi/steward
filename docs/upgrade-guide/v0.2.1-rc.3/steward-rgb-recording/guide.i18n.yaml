@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.3/steward-rgb-recording/guide.md
+/:
+  en: c47ff9c89f7acd42
+  zh: f8f967b2309f046d
+/steward-rgb-only-recording-and-novelanything-inputs:
+  en: 2976b44864ffd807
+  zh: 9467e1ce182ca767
+/steward-rgb-only-recording-and-novelanything-inputs/change:
+  en: 42de0d70ad24e9e9
+  zh: f552ee1bb7d885a8
+/steward-rgb-only-recording-and-novelanything-inputs/migration:
+  en: 221c520b74829a8f
+  zh: cb9b215b2ebb228d

@@ -23,8 +23,17 @@ setup_profile() {
 }
 
 setup_profile "$VAR/robot-1" ego "$ROBOT_TEMPLATE" dsh-bundle-ego
+DSH_HOME="$VAR/robot-1" "$DSH" plugin --profile ego add "$STEWARD/dsh/packages/dsh-bundle-rgbd-video-gen"
+DSH_HOME="$VAR/robot-1" "$DSH" plugin --profile ego add "$STEWARD/dsh/packages/dsh-bundle-novelanything"
+DSH_HOME="$VAR/robot-1" "$DSH" plugin --profile ego add "$STEWARD/dsh/packages/dsh-bundle-slarm"
 setup_profile "$VAR/world" world web dsh-bundle-world
 setup_profile "$VAR/world" world-task headless dsh-bundle-world
 for profile in world world-task; do
   DSH_HOME="$VAR/world" "$DSH" plugin --profile "$profile" add "$STEWARD/dsh/packages/dsh-bundle-slarm"
+  if node -e 'const p = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")); process.exit(p.dependencies?.["@steward/dsh-bundle-rgbd-video-gen"] ? 0 : 1)' "$VAR/world/profiles/$profile/package.json"; then
+    DSH_HOME="$VAR/world" "$DSH" plugin --profile "$profile" remove @steward/dsh-bundle-rgbd-video-gen
+  fi
+  if node -e 'const p = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")); process.exit(p.dependencies?.["@steward/dsh-bundle-novelanything"] ? 0 : 1)' "$VAR/world/profiles/$profile/package.json"; then
+    DSH_HOME="$VAR/world" "$DSH" plugin --profile "$profile" remove @steward/dsh-bundle-novelanything
+  fi
 done
